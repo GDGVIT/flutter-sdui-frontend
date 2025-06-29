@@ -1,0 +1,323 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import '../../models/widget_node.dart';
+import '../../models/app_theme.dart';
+import '../../services/widget_properties_service.dart';
+
+class PropertiesPanel extends StatelessWidget {
+  final WidgetNode? selectedWidget;
+  final AppTheme appTheme;
+  final Function(String, String, dynamic) onPropertyChanged;
+  final Function(String) onWidgetRemoved;
+
+  const PropertiesPanel({
+    super.key,
+    this.selectedWidget,
+    required this.appTheme,
+    required this.onPropertyChanged,
+    required this.onWidgetRemoved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Properties',
+                style: TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              if (selectedWidget != null && selectedWidget!.type != 'Scaffold')
+                IconButton(
+                  onPressed: () => onWidgetRemoved(selectedWidget!.id),
+                  icon: const Icon(
+                    Icons.delete,
+                    color: Color(0xFFFF5252),
+                    size: 20,
+                  ),
+                  tooltip: 'Remove Widget',
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (selectedWidget != null) ...[
+            Text(
+              'Selected: ${selectedWidget!.label}',
+              style: const TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Type: ${selectedWidget!.type}',
+              style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Children: ${selectedWidget!.children.length}',
+              style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFF666666)),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _buildPropertiesEditor(context),
+            ),
+          ] else
+            const Text(
+              'Select a widget to edit its properties',
+              style: TextStyle(color: Color(0xFFEDF1EE)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPropertiesEditor(BuildContext context) {
+    final properties = WidgetPropertiesService.getPropertyDefinitions(selectedWidget!.type);
+    
+    return ListView.builder(
+      itemCount: properties.length,
+      itemBuilder: (context, index) {
+        final property = properties[index];
+        final currentValue = selectedWidget!.properties[property.key];
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                property.label,
+                style: const TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPropertyInput(context, property, currentValue),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPropertyInput(BuildContext context, PropertyDefinition property, dynamic currentValue) {
+    switch (property.type) {
+      case PropertyType.text:
+        final controller = TextEditingController(text: currentValue?.toString() ?? '');
+        controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: controller.text.length),
+        );
+        return TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF3F3F3F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+          ),
+          controller: controller,
+          onChanged: (value) {
+            onPropertyChanged(selectedWidget!.id, property.key, value);
+          },
+        );
+      case PropertyType.number:
+        return TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF3F3F3F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+          ),
+          keyboardType: TextInputType.number,
+          controller: TextEditingController(text: currentValue?.toString() ?? '0'),
+          onChanged: (value) {
+            final numValue = double.tryParse(value) ?? 0.0;
+            onPropertyChanged(selectedWidget!.id, property.key, numValue);
+          },
+        );
+      case PropertyType.boolean:
+        return Row(
+          children: [
+            Switch(
+              value: currentValue ?? false,
+              onChanged: (value) {
+                onPropertyChanged(selectedWidget!.id, property.key, value);
+              },
+              activeColor: const Color(0xFF4CAF50),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              currentValue == true ? 'True' : 'False',
+              style: const TextStyle(color: Color(0xFFEDF1EE)),
+            ),
+          ],
+        );
+      case PropertyType.color:
+        return GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => ColorPickerDialog(
+                initialColor: _parseColor(currentValue?.toString() ?? '#FF3F3F3F'),
+                onColorChanged: (color) {
+                  final hexColor = '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+                  onPropertyChanged(selectedWidget!.id, property.key, hexColor);
+                },
+              ),
+            );
+          },
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: _parseColor(currentValue?.toString() ?? '#FF3F3F3F'),
+              border: Border.all(color: const Color(0xFF666666)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Text(
+                  currentValue?.toString() ?? '#FF3F3F3F',
+                  style: TextStyle(
+                    color: _parseColor(currentValue?.toString() ?? '#FF3F3F3F').computeLuminance() > 0.5 
+                        ? Colors.black 
+                        : Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.color_lens,
+                  color: Color(0xFFEDF1EE),
+                  size: 16,
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+        );
+      case PropertyType.dropdown:
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF3F3F3F),
+            border: Border.all(color: const Color(0xFF666666)),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: DropdownButton<String>(
+            value: currentValue?.toString(),
+            isExpanded: true,
+            underline: Container(),
+            dropdownColor: const Color(0xFF3F3F3F),
+            style: const TextStyle(color: Color(0xFFEDF1EE)),
+            items: property.options?.map((option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(option),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                onPropertyChanged(selectedWidget!.id, property.key, value);
+              }
+            },
+          ),
+        );
+      default:
+        return const SizedBox();
+    }
+  }
+
+  Color _parseColor(String colorString) {
+    try {
+      return Color(int.parse(colorString.replaceFirst('#', '0x')));
+    } catch (e) {
+      return const Color(0xFF3F3F3F);
+    }
+  }
+}
+
+class ColorPickerDialog extends StatefulWidget {
+  final Color initialColor;
+  final Function(Color) onColorChanged;
+  const ColorPickerDialog({super.key, required this.initialColor, required this.onColorChanged});
+
+  @override
+  State<ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<ColorPickerDialog> {
+  late Color _color;
+
+  @override
+  void initState() {
+    super.initState();
+    _color = widget.initialColor;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Pick a color'),
+      content: SingleChildScrollView(
+        child: ColorPicker(
+          pickerColor: _color,
+          onColorChanged: (color) => setState(() => _color = color),
+          enableAlpha: true,
+          showLabel: true,
+          pickerAreaHeightPercent: 0.7,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            widget.onColorChanged(_color);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Select'),
+        ),
+      ],
+    );
+  }
+} 
