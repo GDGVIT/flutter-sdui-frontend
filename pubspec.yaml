@@ -17,6 +17,7 @@ dependencies:
   flutter_colorpicker: ^1.0.3
   flutter_sdui: 
     path: ../flutter-sdui-package
+  file_picker: ^10.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,172 @@
 import 'package:flutter/material.dart';
 
 class WidgetPropertiesService {
+  // --- Modular property registry for all widget types ---
+  static final Map<String, List<PropertyDefinition>> propertyRegistry = {
+    // Legacy types
+    'Container Widget': [
+      PropertyDefinition<double>('width', 'Width', PropertyType.number),
+      PropertyDefinition<double>('height', 'Height', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+      PropertyDefinition<String>('color', 'Color', PropertyType.color),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<String>('alignment', 'Alignment', PropertyType.dropdown, options: [
+        'topLeft', 'topCenter', 'topRight', 'centerLeft', 'center', 'centerRight',
+        'bottomLeft', 'bottomCenter', 'bottomRight']),
+      PropertyDefinition<double>('borderRadius', 'Border Radius', PropertyType.number),
+      PropertyDefinition<double>('borderWidth', 'Border Width', PropertyType.number),
+      PropertyDefinition<String>('borderColor', 'Border Color', PropertyType.color),
+      PropertyDefinition<double>('minWidth', 'Min Width', PropertyType.number),
+      PropertyDefinition<double>('maxWidth', 'Max Width', PropertyType.number),
+      PropertyDefinition<double>('minHeight', 'Min Height', PropertyType.number),
+      PropertyDefinition<double>('maxHeight', 'Max Height', PropertyType.number),
+    ],
+    'Row Widget': [
+      PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+      PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'stretch', 'baseline']),
+      PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown, options: ['min', 'max']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'Column Widget': [
+      PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+      PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'stretch', 'baseline']),
+      PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown, options: ['min', 'max']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'Text Widget': [
+      PropertyDefinition<String>('text', 'Text', PropertyType.text),
+      PropertyDefinition<double>('fontSize', 'Font Size', PropertyType.number),
+      PropertyDefinition<String>('fontWeight', 'Font Weight', PropertyType.dropdown, options: [
+        'normal', 'bold', 'w100', 'w200', 'w300', 'w400', 'w500', 'w600', 'w700', 'w800', 'w900']),
+      PropertyDefinition<String>('color', 'Color', PropertyType.color),
+      PropertyDefinition<String>('textAlign', 'Text Align', PropertyType.dropdown, options: [
+        'left', 'right', 'center', 'justify']),
+      PropertyDefinition<String>('fontFamily', 'Font Family', PropertyType.dropdown, options: [
+        'Roboto', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New']),
+      PropertyDefinition<double>('letterSpacing', 'Letter Spacing', PropertyType.number),
+      PropertyDefinition<double>('lineHeight', 'Line Height', PropertyType.number),
+      PropertyDefinition<int>('maxLines', 'Max Lines', PropertyType.number),
+      PropertyDefinition<String>('overflow', 'Overflow', PropertyType.dropdown, options: [
+        'clip', 'fade', 'ellipsis', 'visible']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'Scaffold': [
+      PropertyDefinition<String>('backgroundColor', 'Background Color', PropertyType.color),
+      PropertyDefinition<String>('appBarTitle', 'App Bar Title', PropertyType.text),
+      PropertyDefinition<String>('appBarColor', 'App Bar Color', PropertyType.color),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    // --- SDUI types ---
+    'SduiColumn': [
+      PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+      PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'stretch', 'baseline']),
+      PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown, options: ['min', 'max']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'SduiRow': [
+      PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+      PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown, options: [
+        'start', 'end', 'center', 'stretch', 'baseline']),
+      PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown, options: ['min', 'max']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'SduiContainer': [
+      PropertyDefinition<double>('width', 'Width', PropertyType.number),
+      PropertyDefinition<double>('height', 'Height', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+      PropertyDefinition<String>('color', 'Color', PropertyType.color),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<String>('alignment', 'Alignment', PropertyType.dropdown, options: [
+        'topLeft', 'topCenter', 'topRight', 'centerLeft', 'center', 'centerRight',
+        'bottomLeft', 'bottomCenter', 'bottomRight']),
+      PropertyDefinition<double>('borderRadius', 'Border Radius', PropertyType.number),
+      PropertyDefinition<double>('borderWidth', 'Border Width', PropertyType.number),
+      PropertyDefinition<String>('borderColor', 'Border Color', PropertyType.color),
+      PropertyDefinition<double>('minWidth', 'Min Width', PropertyType.number),
+      PropertyDefinition<double>('maxWidth', 'Max Width', PropertyType.number),
+      PropertyDefinition<double>('minHeight', 'Min Height', PropertyType.number),
+      PropertyDefinition<double>('maxHeight', 'Max Height', PropertyType.number),
+    ],
+    'SduiText': [
+      PropertyDefinition<String>('text', 'Text', PropertyType.text),
+      PropertyDefinition<double>('fontSize', 'Font Size', PropertyType.number),
+      PropertyDefinition<String>('fontWeight', 'Font Weight', PropertyType.dropdown, options: [
+        'normal', 'bold', 'w100', 'w200', 'w300', 'w400', 'w500', 'w600', 'w700', 'w800', 'w900']),
+      PropertyDefinition<String>('color', 'Color', PropertyType.color),
+      PropertyDefinition<String>('textAlign', 'Text Align', PropertyType.dropdown, options: [
+        'left', 'right', 'center', 'justify']),
+      PropertyDefinition<String>('fontFamily', 'Font Family', PropertyType.dropdown, options: [
+        'Roboto', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New']),
+      PropertyDefinition<double>('letterSpacing', 'Letter Spacing', PropertyType.number),
+      PropertyDefinition<double>('lineHeight', 'Line Height', PropertyType.number),
+      PropertyDefinition<int>('maxLines', 'Max Lines', PropertyType.number),
+      PropertyDefinition<String>('overflow', 'Overflow', PropertyType.dropdown, options: [
+        'clip', 'fade', 'ellipsis', 'visible']),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+    'SduiImage': [
+      PropertyDefinition<String>('src', 'Image Source', PropertyType.text),
+      PropertyDefinition<double>('width', 'Width', PropertyType.number),
+      PropertyDefinition<double>('height', 'Height', PropertyType.number),
+      PropertyDefinition<String>('fit', 'Box Fit', PropertyType.dropdown, options: [
+        'fill', 'contain', 'cover', 'fitWidth', 'fitHeight', 'none', 'scaleDown']),
+      PropertyDefinition<double>('borderRadius', 'Border Radius', PropertyType.number),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+    ],
+    'SduiIcon': [
+      PropertyDefinition<String>('icon', 'Icon Name', PropertyType.text),
+      PropertyDefinition<double>('size', 'Icon Size', PropertyType.number),
+      PropertyDefinition<String>('color', 'Icon Color', PropertyType.color),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+    ],
+    'SduiSpacer': [
+      PropertyDefinition<double>('flex', 'Flex', PropertyType.number),
+    ],
+    'SduiSizedBox': [
+      PropertyDefinition<double>('width', 'Width', PropertyType.number),
+      PropertyDefinition<double>('height', 'Height', PropertyType.number),
+    ],
+    'SduiScaffold': [
+      PropertyDefinition<String>('backgroundColor', 'Background Color', PropertyType.color),
+      PropertyDefinition<String>('appBarTitle', 'App Bar Title', PropertyType.text),
+      PropertyDefinition<String>('appBarColor', 'App Bar Color', PropertyType.color),
+      PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
+      PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
+    ],
+  };
+
   static Map<String, dynamic> getDefaultProperties(String widgetType) {
     switch (widgetType) {
       case 'Container Widget':
@@ -93,105 +259,11 @@ class WidgetPropertiesService {
   }
 
   static List<PropertyDefinition<T>> getPropertyDefinitions<T>(String widgetType) {
-    switch (widgetType) {
-      case 'Container Widget':
-        return [
-          PropertyDefinition<double>('width', 'Width', PropertyType.number),
-          PropertyDefinition<double>('height', 'Height', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-          PropertyDefinition<String>('color', 'Color', PropertyType.color),
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<String>('alignment', 'Alignment', PropertyType.dropdown, 
-            options: ['topLeft', 'topCenter', 'topRight', 'centerLeft', 'center', 'centerRight', 'bottomLeft', 'bottomCenter', 'bottomRight']),
-          PropertyDefinition<double>('borderRadius', 'Border Radius', PropertyType.number),
-          PropertyDefinition<double>('borderWidth', 'Border Width', PropertyType.number),
-          PropertyDefinition<String>('borderColor', 'Border Color', PropertyType.color),
-          PropertyDefinition<double>('minWidth', 'Min Width', PropertyType.number),
-          PropertyDefinition<double>('maxWidth', 'Max Width', PropertyType.number),
-          PropertyDefinition<double>('minHeight', 'Min Height', PropertyType.number),
-          PropertyDefinition<double>('maxHeight', 'Max Height', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'Row Widget':
-        return [
-          PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown,
-            options: ['start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
-          PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown,
-            options: ['start', 'end', 'center', 'stretch', 'baseline']),
-          PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown,
-            options: ['min', 'max']),
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'Column Widget':
-        return [
-          PropertyDefinition<String>('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown,
-            options: ['start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
-          PropertyDefinition<String>('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown,
-            options: ['start', 'end', 'center', 'stretch', 'baseline']),
-          PropertyDefinition<String>('mainAxisSize', 'Main Axis Size', PropertyType.dropdown,
-            options: ['min', 'max']),
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'Stack Widget':
-        return [
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'Text Widget':
-        return [
-          PropertyDefinition<String>('text', 'Text', PropertyType.text),
-          PropertyDefinition<double>('fontSize', 'Font Size', PropertyType.number),
-          PropertyDefinition<String>('fontWeight', 'Font Weight', PropertyType.dropdown,
-            options: ['normal', 'bold', 'w100', 'w200', 'w300', 'w400', 'w500', 'w600', 'w700', 'w800', 'w900']),
-          PropertyDefinition<String>('color', 'Color', PropertyType.color),
-          PropertyDefinition<String>('textAlign', 'Text Align', PropertyType.dropdown,
-            options: ['left', 'right', 'center', 'justify']),
-          PropertyDefinition<String>('fontFamily', 'Font Family', PropertyType.dropdown,
-            options: ['Roboto', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New']),
-          PropertyDefinition<double>('letterSpacing', 'Letter Spacing', PropertyType.number),
-          PropertyDefinition<double>('lineHeight', 'Line Height', PropertyType.number),
-          PropertyDefinition<int>('maxLines', 'Max Lines', PropertyType.number),
-          PropertyDefinition<String>('overflow', 'Overflow', PropertyType.dropdown,
-            options: ['clip', 'fade', 'ellipsis', 'visible']),
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'TextField Widget':
-        return [
-          PropertyDefinition<String>('hintText', 'Hint Text', PropertyType.text),
-          PropertyDefinition<String>('labelText', 'Label Text', PropertyType.text),
-          PropertyDefinition<bool>('obscureText', 'Obscure Text', PropertyType.boolean),
-          PropertyDefinition<bool>('enabled', 'Enabled', PropertyType.boolean),
-          PropertyDefinition<int>('maxLines', 'Max Lines', PropertyType.number),
-          PropertyDefinition<bool>('filled', 'Filled', PropertyType.boolean),
-          PropertyDefinition<String>('fillColor', 'Fill Color', PropertyType.color),
-          PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
-          PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      case 'Scaffold':
-        return [
-          PropertyDefinition<String>('backgroundColor', 'Background Color', PropertyType.color),
-          PropertyDefinition<String>('appBarTitle', 'App Bar Title', PropertyType.text),
-          PropertyDefinition<String>('appBarColor', 'App Bar Color', PropertyType.color),
-          PropertyDefinition<double>('widthPercent', 'Width (%)', PropertyType.number),
-          PropertyDefinition<double>('heightPercent', 'Height (%)', PropertyType.number),
-        ] as List<PropertyDefinition<T>>;
-      default:
-        return [];
+    final defs = propertyRegistry[widgetType];
+    if (defs != null) {
+      return defs.cast<PropertyDefinition<T>>();
     }
+    return [];
   }
 
   static WidgetConstraints getConstraints(String widgetType) {
@@ -231,6 +303,31 @@ class WidgetPropertiesService {
         return const Size(120, 120);
       default:
         return const Size(100, 60);
+    }
+  }
+
+  static String getChildrenInfo(String widgetType) {
+    switch (widgetType) {
+      case 'SduiColumn':
+        return 'Multiple SDUI children';
+      case 'SduiRow':
+        return 'Multiple SDUI children';
+      case 'SduiContainer':
+        return 'Single SDUI child';
+      case 'SduiScaffold':
+        return 'Single SDUI child (body)';
+      case 'SduiSizedBox':
+        return 'Single SDUI child (optional)';
+      case 'SduiSpacer':
+        return 'No children';
+      case 'SduiText':
+        return 'No children';
+      case 'SduiImage':
+        return 'No children';
+      case 'SduiIcon':
+        return 'No children';
+      default:
+        return 'No children';
     }
   }
 }

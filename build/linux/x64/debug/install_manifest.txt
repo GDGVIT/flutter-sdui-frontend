@@ -1,0 +1,13 @@
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/flutter_sdui_frontend
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/icudtl.dat
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/lib/libflutter_linux_gtk.so
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/AssetManifest.bin
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/AssetManifest.json
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/FontManifest.json
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/fonts/MaterialIcons-Regular.otf
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/kernel_blob.bin
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/NativeAssetsManifest.json
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/NOTICES.Z
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/shaders/ink_sparkle.frag
+/media/tba/files/projects/flutter-sdui-frontend/build/linux/x64/debug/bundle/data/flutter_assets/version.json

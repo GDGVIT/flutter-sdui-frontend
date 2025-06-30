@@ -3,23 +3,25 @@ import '../models/widget_node.dart';
 import '../models/app_theme.dart';
 import '../models/widget_data.dart';
 import '../services/widget_properties_service.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter_sdui/flutter_sdui.dart';
 
 class DesignCanvasViewModel extends ChangeNotifier {
+  WidgetNode _rootWidgetNode;
   String _selectedPane = 'build';
-  WidgetNode _scaffoldWidget;
   String? _selectedWidgetId;
   bool _showPreview = false;
   AppTheme _appTheme = AppTheme.defaultTheme;
   double _canvasScale = 1.0;
   Offset _canvasOffset = Offset.zero;
-  // Persist visual sizes for design mode
-  final Map<String, Size> _visualSizes = {};
 
-  DesignCanvasViewModel() : _scaffoldWidget = _createDefaultScaffold();
+  DesignCanvasViewModel()
+      : _rootWidgetNode = _createDefaultScaffold();
 
   // Getters
   String get selectedPane => _selectedPane;
-  WidgetNode get scaffoldWidget => _scaffoldWidget;
+  WidgetNode get widgetRoot => _rootWidgetNode;
   String? get selectedWidgetId => _selectedWidgetId;
   bool get showPreview => _showPreview;
   AppTheme get appTheme => _appTheme;
@@ -39,7 +41,6 @@ class DesignCanvasViewModel extends ChangeNotifier {
     );
   }
 
-  // Actions
   void setSelectedPane(String pane) {
     _selectedPane = pane;
     notifyListeners();
@@ -82,7 +83,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void addWidgetToParent(String parentId, WidgetData widgetData) {
-    _scaffoldWidget = _addWidgetToParent(_scaffoldWidget, parentId, widgetData);
+    _rootWidgetNode = _addWidgetToParent(_rootWidgetNode, parentId, widgetData);
     notifyListeners();
   }
 
@@ -123,7 +124,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void updateWidgetProperty(String widgetId, String propertyName, dynamic value) {
-    _scaffoldWidget = _updateWidgetProperty(_scaffoldWidget, widgetId, propertyName, value);
+    _rootWidgetNode = _updateWidgetProperty(_rootWidgetNode, widgetId, propertyName, value);
     notifyListeners();
   }
 
@@ -147,8 +148,8 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void removeWidget(String widgetId) {
-    if (widgetId == _scaffoldWidget.id) return;
-    _scaffoldWidget = _removeWidget(_scaffoldWidget, widgetId);
+    if (widgetId == _rootWidgetNode.id) return;
+    _rootWidgetNode = _removeWidget(_rootWidgetNode, widgetId);
     if (_selectedWidgetId == widgetId) {
       _selectedWidgetId = null;
     }
@@ -164,7 +165,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void moveWidget(String id, Offset newPosition) {
-    _scaffoldWidget = _moveWidget(_scaffoldWidget, id, newPosition);
+    _rootWidgetNode = _moveWidget(_rootWidgetNode, id, newPosition);
     notifyListeners();
   }
 
@@ -179,7 +180,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void resizeWidget(String id, Size newSize) {
-    _scaffoldWidget = _resizeWidget(_scaffoldWidget, id, newSize);
+    _rootWidgetNode = _resizeWidget(_rootWidgetNode, id, newSize);
     notifyListeners();
   }
 
@@ -210,7 +211,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
       }
       return null;
     }
-    return findInWidget(_scaffoldWidget);
+    return findInWidget(_rootWidgetNode);
   }
 
   WidgetNode? getSelectedWidget() {
@@ -233,7 +234,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   }
 
   void replaceChild(String widgetId) {
-    _scaffoldWidget = _replaceChild(_scaffoldWidget, widgetId);
+    _rootWidgetNode = _replaceChild(_rootWidgetNode, widgetId);
     notifyListeners();
   }
 
@@ -250,7 +251,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
   // Export/Import methods
   Map<String, dynamic> exportProject() {
     return {
-      'scaffoldWidget': _scaffoldWidget.toJson(),
+      'scaffoldWidget': _rootWidgetNode.toJson(),
       'appTheme': _appTheme.toJson(),
       'selectedWidgetId': _selectedWidgetId,
     };
@@ -258,7 +259,7 @@ class DesignCanvasViewModel extends ChangeNotifier {
 
   void importProject(Map<String, dynamic> data) {
     try {
-      _scaffoldWidget = WidgetNode.fromJson(data['scaffoldWidget']);
+      _rootWidgetNode = WidgetNode.fromJson(data['scaffoldWidget']);
       _appTheme = AppTheme.fromJson(data['appTheme']);
       _selectedWidgetId = data['selectedWidgetId'];
       notifyListeners();
@@ -268,14 +269,45 @@ class DesignCanvasViewModel extends ChangeNotifier {
     }
   }
 
-  // Visual size methods for design mode
-  Size? getVisualSize(String widgetId) => _visualSizes[widgetId];
-  void setVisualSize(String widgetId, Size size) {
-    _visualSizes[widgetId] = size;
-    notifyListeners();
+  /// Recursively convert a WidgetNode tree to an SDUI widget tree.
+  SduiWidget widgetNodeToSduiWidget(WidgetNode node) {
+    final children = node.children.map(widgetNodeToSduiWidget).toList();
+    switch (node.type) {
+      case 'SduiColumn':
+        return SduiColumn(children: children);
+      case 'SduiRow':
+        return SduiRow(children: children);
+      case 'SduiContainer':
+        return SduiContainer(); // Add property mapping as needed
+      case 'SduiText':
+        return SduiText(node.properties['text']?.toString() ?? '');
+      case 'SduiImage':
+        return SduiImage(node.properties['src']?.toString() ?? '');
+      case 'SduiIcon':
+        return SduiIcon();
+      case 'SduiSpacer':
+        return SduiSpacer();
+      case 'SduiSizedBox':
+        return SduiSizedBox();
+      case 'SduiScaffold':
+        return SduiScaffold();
+      default:
+        return SduiContainer();
+    }
   }
-  void clearVisualSizes() {
-    _visualSizes.clear();
-    notifyListeners();
+
+  /// Export the current SDUI widget tree to a JSON file at [filePath].
+  Future<void> exportToFile(String filePath) async {
+    final sduiWidget = widgetNodeToSduiWidget(widgetRoot);
+    final sduiJson = SduiParser.toJson(sduiWidget);
+    final jsonString = jsonEncode(sduiJson);
+    final file = File(filePath);
+    await file.writeAsString(jsonString);
+  }
+
+  /// Utility to export an SduiWidget to a JSON string.
+  String exportToJsonString(SduiWidget sduiWidget) {
+    final sduiJson = SduiParser.toJson(sduiWidget);
+    return jsonEncode(sduiJson);
   }
 } 

@@ -50,7 +50,7 @@ class _DesignCanvasScreenContent extends StatelessWidget {
                 color: const Color(0xFF2F2F2F),
                 child: LeftSidebar(
                   selectedPane: viewModel.selectedPane,
-                  scaffoldWidget: viewModel.scaffoldWidget,
+                  scaffoldWidget: viewModel.widgetRoot,
                   appTheme: viewModel.appTheme,
                   onThemeChanged: viewModel.updateTheme,
                   onWidgetDropped: (widgetData) {
@@ -102,11 +102,11 @@ class _DesignCanvasScreenContent extends StatelessWidget {
                     Expanded(
                       child: viewModel.showPreview
                           ? PreviewCanvas(
-                              scaffoldWidget: viewModel.scaffoldWidget,
+                              widgetRoot: viewModel.widgetRoot,
                               appTheme: viewModel.appTheme,
                             )
                           : DesignCanvas(
-                              scaffoldWidget: viewModel.scaffoldWidget,
+                              widgetRoot: viewModel.widgetRoot,
                               selectedWidgetId: viewModel.selectedWidgetId,
                               appTheme: viewModel.appTheme,
                               onWidgetSelected: viewModel.setSelectedWidget,
@@ -173,7 +173,7 @@ class _DesignCanvasScreenContent extends StatelessWidget {
   }
 
   void _showCodeDialog(BuildContext context, DesignCanvasViewModel viewModel) {
-    final code = CodeGeneratorService.generateCode(viewModel.scaffoldWidget, viewModel.appTheme);
+    final code = CodeGeneratorService.generateCode(viewModel.widgetRoot, viewModel.appTheme);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
