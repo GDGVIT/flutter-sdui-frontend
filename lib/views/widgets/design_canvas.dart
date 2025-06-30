@@ -25,10 +25,10 @@ class DesignCanvas extends StatefulWidget {
   });
 
   @override
-  State<DesignCanvas> createState() => _DesignCanvasState();
+  State<DesignCanvas> createState() => DesignCanvasState();
 }
 
-class _DesignCanvasState extends State<DesignCanvas> {
+class DesignCanvasState extends State<DesignCanvas> {
   String? _hoveredWidgetId;
   String? _resizingWidgetId;
   double _canvasScale = 1.0;
@@ -39,11 +39,25 @@ class _DesignCanvasState extends State<DesignCanvas> {
   final Map<String, GlobalKey> _dropTargetKeys = HashMap();
   String? _deepestDropTargetId;
 
+  // Custom drag state for palette-to-canvas
+  bool _isDraggingFromPalette = false;
+  WidgetData? _draggedWidgetData;
+  Offset? _dragPointerPositionGlobal;
+  Offset? _dragPointerPositionLocal;
+  String? _paletteDropTargetId;
+
+  // Helper: get the RenderBox for the canvas
+  RenderBox? get _canvasBox => context.findRenderObject() as RenderBox?;
+
   void _updatePointerPosition(PointerEvent event) {
-    setState(() {
-      _lastPointerPosition = event.localPosition;
-      _deepestDropTargetId = _findDeepestDropTargetId(_lastPointerPosition!);
-    });
+    if (_isDraggingFromPalette) {
+      updatePaletteDrag(event.position);
+    } else {
+      setState(() {
+        _lastPointerPosition = event.localPosition;
+        _deepestDropTargetId = _findDeepestDropTargetId(_lastPointerPosition!);
+      });
+    }
   }
 
   String? _findDeepestDropTargetId(Offset pointer) {
@@ -67,6 +81,46 @@ class _DesignCanvasState extends State<DesignCanvas> {
       }
     });
     return result;
+  }
+
+  void startPaletteDrag(WidgetData data, Offset globalPosition) {
+    setState(() {
+      _isDraggingFromPalette = true;
+      _draggedWidgetData = data;
+      _dragPointerPositionGlobal = globalPosition;
+      _updatePaletteDragPosition(globalPosition);
+    });
+  }
+
+  void updatePaletteDrag(Offset globalPosition) {
+    if (_isDraggingFromPalette) {
+      setState(() {
+        _dragPointerPositionGlobal = globalPosition;
+        _updatePaletteDragPosition(globalPosition);
+      });
+    }
+  }
+
+  void endPaletteDrag() {
+    if (_isDraggingFromPalette && _paletteDropTargetId != null && _draggedWidgetData != null) {
+      widget.onWidgetAdded(_paletteDropTargetId!, _draggedWidgetData!);
+    }
+    setState(() {
+      _isDraggingFromPalette = false;
+      _draggedWidgetData = null;
+      _dragPointerPositionGlobal = null;
+      _dragPointerPositionLocal = null;
+      _paletteDropTargetId = null;
+    });
+  }
+
+  void _updatePaletteDragPosition(Offset globalPosition) {
+    final box = _canvasBox;
+    if (box != null) {
+      final local = box.globalToLocal(globalPosition);
+      _dragPointerPositionLocal = local;
+      _paletteDropTargetId = _findDeepestDropTargetId(local);
+    }
   }
 
   @override
@@ -154,6 +208,18 @@ class _DesignCanvasState extends State<DesignCanvas> {
                     ),
                   ),
                 ),
+                // Custom drag feedback overlay
+                if (_isDraggingFromPalette && _draggedWidgetData != null && _dragPointerPositionLocal != null)
+                  Positioned(
+                    left: _dragPointerPositionLocal!.dx - 40,
+                    top: _dragPointerPositionLocal!.dy - 40,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: 0.85,
+                        child: _buildPaletteDragFeedback(_draggedWidgetData!),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -262,15 +328,13 @@ class _DesignCanvasState extends State<DesignCanvas> {
       final baseNodeContainer = nodeContainer;
       nodeContainer = DragTarget<WidgetData>(
         key: dropKey,
-        onWillAccept: (data) => true,
-        onAccept: (data) {
-          widget.onWidgetAdded(node.id, data);
-        },
+        onWillAccept: (data) => false, // disable built-in DragTarget for palette
+        onAccept: (data) {},
         builder: (context, candidateData, rejectedData) {
           return Stack(
             children: [
               baseNodeContainer,
-              if (_deepestDropTargetId == node.id && candidateData.isNotEmpty)
+              if ((_isDraggingFromPalette && _paletteDropTargetId == node.id) || (!_isDraggingFromPalette && _deepestDropTargetId == node.id && candidateData.isNotEmpty))
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -429,5 +493,21 @@ class _DesignCanvasState extends State<DesignCanvas> {
     } catch (e) {
       return const Color(0xFF3F3F3F);
     }
+  }
+
+  Widget _buildPaletteDragFeedback(WidgetData data) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+        ),
+        child: Icon(data.icon, color: const Color(0xFF212121), size: 32),
+      ),
+    );
   }
 } 

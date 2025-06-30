@@ -5,10 +5,16 @@ import '../../services/widget_properties_service.dart';
 
 class BuildPane extends StatefulWidget {
   final Function(WidgetData) onWidgetDropped;
+  final void Function(WidgetData, Offset)? onPaletteDragStart;
+  final void Function(Offset)? onPaletteDragUpdate;
+  final VoidCallback? onPaletteDragEnd;
 
   const BuildPane({
     super.key,
     required this.onWidgetDropped,
+    this.onPaletteDragStart,
+    this.onPaletteDragUpdate,
+    this.onPaletteDragEnd,
   });
 
   @override
@@ -141,36 +147,25 @@ class _BuildPaneState extends State<BuildPane> {
   }
 
   Widget _buildWidgetCard(WidgetPaletteEntry entry) {
-    return Draggable<WidgetData>(
-      data: WidgetData(
-        type: entry.type,
-        label: entry.label,
-        icon: entry.icon,
-        position: const Offset(0, 0),
-      ),
-      feedback: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0).withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
-        ),
-        child: Icon(entry.icon, color: const Color(0xFF212121), size: 32),
-      ),
-      childWhenDragging: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF3F3F3F),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
-        ),
-        child: const Center(
-          child: Text(
-            'Dragging...',
-            style: TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
-          ),
-        ),
-      ),
+    final widgetData = WidgetData(
+      type: entry.type,
+      label: entry.label,
+      icon: entry.icon,
+      position: const Offset(0, 0),
+    );
+    return Listener(
+      onPointerDown: (event) {
+        widget.onPaletteDragStart?.call(widgetData, event.position);
+      },
+      onPointerMove: (event) {
+        widget.onPaletteDragUpdate?.call(event.position);
+      },
+      onPointerUp: (event) {
+        widget.onPaletteDragEnd?.call();
+      },
+      onPointerCancel: (event) {
+        widget.onPaletteDragEnd?.call();
+      },
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFE0E0E0),

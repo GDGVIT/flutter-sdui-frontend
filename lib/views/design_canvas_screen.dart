@@ -20,8 +20,15 @@ class DesignCanvasScreen extends StatelessWidget {
   }
 }
 
-class _DesignCanvasScreenContent extends StatelessWidget {
+class _DesignCanvasScreenContent extends StatefulWidget {
   const _DesignCanvasScreenContent();
+
+  @override
+  _DesignCanvasScreenContentState createState() => _DesignCanvasScreenContentState();
+}
+
+class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> {
+  final GlobalKey<DesignCanvasState> _canvasKey = GlobalKey<DesignCanvasState>();
 
   @override
   Widget build(BuildContext context) {
@@ -53,12 +60,12 @@ class _DesignCanvasScreenContent extends StatelessWidget {
                   scaffoldWidget: viewModel.widgetRoot,
                   appTheme: viewModel.appTheme,
                   onThemeChanged: viewModel.updateTheme,
-                  onWidgetDropped: (widgetData) {
-                    // This callback is used by BuildPane's Draggable
-                    // Drop logic is handled in DesignCanvas, but keep for compatibility
-                  },
+                  onWidgetDropped: (widgetData) {},
                   selectedWidgetId: viewModel.selectedWidgetId,
                   onWidgetSelected: viewModel.setSelectedWidget,
+                  onPaletteDragStart: (data, pos) => _canvasKey.currentState?.startPaletteDrag(data, pos),
+                  onPaletteDragUpdate: (pos) => _canvasKey.currentState?.updatePaletteDrag(pos),
+                  onPaletteDragEnd: () => _canvasKey.currentState?.endPaletteDrag(),
                 ),
               ),
               // Main Canvas Area
@@ -106,6 +113,7 @@ class _DesignCanvasScreenContent extends StatelessWidget {
                               appTheme: viewModel.appTheme,
                             )
                           : DesignCanvas(
+                              key: _canvasKey,
                               widgetRoot: viewModel.widgetRoot,
                               selectedWidgetId: viewModel.selectedWidgetId,
                               appTheme: viewModel.appTheme,

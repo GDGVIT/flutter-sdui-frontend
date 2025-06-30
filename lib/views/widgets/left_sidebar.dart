@@ -36,6 +36,9 @@ class LeftSidebar extends StatelessWidget {
   final Function(WidgetData) onWidgetDropped;
   final String? selectedWidgetId;
   final Function(String) onWidgetSelected;
+  final void Function(WidgetData, Offset)? onPaletteDragStart;
+  final void Function(Offset)? onPaletteDragUpdate;
+  final VoidCallback? onPaletteDragEnd;
 
   const LeftSidebar({
     super.key,
@@ -46,12 +49,20 @@ class LeftSidebar extends StatelessWidget {
     required this.onWidgetDropped,
     this.selectedWidgetId,
     required this.onWidgetSelected,
+    this.onPaletteDragStart,
+    this.onPaletteDragUpdate,
+    this.onPaletteDragEnd,
   });
 
   @override
   Widget build(BuildContext context) {
     if (selectedPane == 'build') {
-      return BuildPane(onWidgetDropped: onWidgetDropped);
+      return BuildPane(
+        onWidgetDropped: onWidgetDropped,
+        onPaletteDragStart: onPaletteDragStart,
+        onPaletteDragUpdate: onPaletteDragUpdate,
+        onPaletteDragEnd: onPaletteDragEnd,
+      );
     } else if (selectedPane == 'widget-tree') {
       return WidgetTreePane(
         scaffoldWidget: scaffoldWidget,
