@@ -14,70 +14,85 @@ class PreviewCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Phone-like frame
     return Center(
-      child: AspectRatio(
-        aspectRatio: 9 / 16,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-            ],
-            border: Border.all(color: Colors.black, width: 4),
-          ),
-          padding: const EdgeInsets.all(8),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              width: 360,
-              height: 640,
-              child: Material(
-                color: appTheme.backgroundColor,
-                child: _buildWidget(scaffoldWidget),
-              ),
+      child: Container(
+        width: 360,
+        height: 640,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 24,
+              spreadRadius: 2,
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Material(
+            color: appTheme.backgroundColor,
+            child: _buildScaffoldPreview(scaffoldWidget),
           ),
         ),
       ),
     );
   }
 
+  // Interpret the root as a Scaffold and render its children
+  Widget _buildScaffoldPreview(WidgetNode node) {
+    if (node.type != 'Scaffold') {
+      return const Center(child: Text('Root must be a Scaffold'));
+    }
+    final appBarTitle = node.properties['appBarTitle']?.toString() ?? '';
+    final appBarColor = _parseColor(node.properties['appBarColor']?.toString()) ?? Colors.black;
+    final backgroundColor = _parseColor(node.properties['backgroundColor']?.toString()) ?? appTheme.backgroundColor;
+    Widget? bodyWidget;
+    if (node.children.isNotEmpty) {
+      final firstChild = node.children.first;
+      final isColOrRow = firstChild.type == 'Column Widget' || firstChild.type == 'Row Widget';
+      final mainAxisSize = firstChild.properties['mainAxisSize']?.toString();
+      if (isColOrRow && mainAxisSize == 'min') {
+        // Render directly, let Column/Row shrink-wrap
+        bodyWidget = _buildWidget(firstChild);
+      } else {
+        // Expand to fill available space
+        bodyWidget = SizedBox.expand(child: _buildWidget(firstChild));
+      }
+    }
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: Text(appBarTitle.isNotEmpty ? appBarTitle : 'App Bar'),
+        backgroundColor: appBarColor,
+      ),
+      body: bodyWidget,
+    );
+  }
+
+  // Recursively interpret the widget tree
   Widget _buildWidget(WidgetNode node) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Only use explicit width/height if set in properties
         double? width;
         double? height;
         final widthPercent = node.properties['widthPercent'] as double?;
         final heightPercent = node.properties['heightPercent'] as double?;
         if (widthPercent != null) {
           width = constraints.maxWidth * (widthPercent / 100);
-        } else if (node.size.width > 0) {
-          width = node.size.width;
+        } else if (node.properties['width'] != null) {
+          width = node.properties['width'] as double?;
         }
         if (heightPercent != null) {
           height = constraints.maxHeight * (heightPercent / 100);
-        } else if (node.size.height > 0) {
-          height = node.size.height;
+        } else if (node.properties['height'] != null) {
+          height = node.properties['height'] as double?;
         }
         Widget child;
         switch (node.type) {
-          case 'Scaffold':
-            final appBarTitle = node.properties['appBarTitle']?.toString() ?? '';
-            final appBarColor = _parseColor(node.properties['appBarColor']?.toString()) ?? Colors.black;
-            child = Scaffold(
-              backgroundColor: _parseColor(node.properties['backgroundColor']?.toString()) ?? appTheme.backgroundColor,
-              appBar: AppBar(
-                title: Text(appBarTitle.isNotEmpty ? appBarTitle : 'App Bar'),
-                backgroundColor: appBarColor,
-              ),
-              body: node.children.isNotEmpty ? _buildWidget(node.children.first) : null,
-            );
-            break;
           case 'Container Widget':
             Widget? content = node.children.isNotEmpty ? _buildWidget(node.children.first) : null;
             final padding = (node.properties['padding'] as double?) ?? 0;
@@ -97,15 +112,13 @@ class PreviewCanvas extends StatelessWidget {
             break;
           case 'Row Widget':
             final crossAxis = _parseCrossAxisAlignment(node.properties['crossAxisAlignment']?.toString());
+            final mainAxis = _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString());
+            final mainAxisSize = _parseMainAxisSize(node.properties['mainAxisSize']?.toString());
             List<Widget> children = node.children.map(_buildWidget).toList();
-            if (crossAxis == CrossAxisAlignment.stretch) {
-              children = children
-                  .map((c) => Expanded(child: c))
-                  .toList();
-            }
             Widget row = Row(
-              mainAxisAlignment: _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString()),
+              mainAxisAlignment: mainAxis,
               crossAxisAlignment: crossAxis,
+              mainAxisSize: mainAxisSize,
               children: children,
             );
             final padding = (node.properties['padding'] as double?) ?? 0;
@@ -119,15 +132,13 @@ class PreviewCanvas extends StatelessWidget {
             break;
           case 'Column Widget':
             final crossAxis = _parseCrossAxisAlignment(node.properties['crossAxisAlignment']?.toString());
+            final mainAxis = _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString());
+            final mainAxisSize = _parseMainAxisSize(node.properties['mainAxisSize']?.toString());
             List<Widget> children = node.children.map(_buildWidget).toList();
-            if (crossAxis == CrossAxisAlignment.stretch) {
-              children = children
-                  .map((c) => Expanded(child: c))
-                  .toList();
-            }
             Widget column = Column(
-              mainAxisAlignment: _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString()),
+              mainAxisAlignment: mainAxis,
               crossAxisAlignment: crossAxis,
+              mainAxisSize: mainAxisSize,
               children: children,
             );
             final padding = (node.properties['padding'] as double?) ?? 0;
@@ -176,6 +187,7 @@ class PreviewCanvas extends StatelessWidget {
           default:
             child = const SizedBox();
         }
+        // Only wrap in SizedBox if width/height is set
         if (width != null || height != null) {
           return SizedBox(
             width: width,
@@ -189,6 +201,7 @@ class PreviewCanvas extends StatelessWidget {
     );
   }
 
+  // --- Helpers for property parsing ---
   Color? _parseColor(String? colorString) {
     if (colorString == null) return null;
     try {
@@ -206,7 +219,17 @@ class PreviewCanvas extends StatelessWidget {
       case 'spaceBetween': return MainAxisAlignment.spaceBetween;
       case 'spaceAround': return MainAxisAlignment.spaceAround;
       case 'spaceEvenly': return MainAxisAlignment.spaceEvenly;
-      default: return MainAxisAlignment.start;
+      default:
+        debugPrint('Unknown mainAxisAlignment: $alignment, defaulting to center');
+        return MainAxisAlignment.center;
+    }
+  }
+
+  MainAxisSize _parseMainAxisSize(String? size) {
+    switch (size) {
+      case 'min': return MainAxisSize.min;
+      case 'max': return MainAxisSize.max;
+      default: return MainAxisSize.max;
     }
   }
 

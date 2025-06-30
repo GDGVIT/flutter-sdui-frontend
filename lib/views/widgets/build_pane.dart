@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/widget_data.dart';
+import 'package:flutter_sdui/flutter_sdui.dart';
+import '../../services/widget_properties_service.dart';
 
 class BuildPane extends StatefulWidget {
   final Function(WidgetData) onWidgetDropped;
@@ -28,6 +30,11 @@ class _BuildPaneState extends State<BuildPane> {
 
   @override
   Widget build(BuildContext context) {
+    final categories = <String>{for (var w in widgetPalette) w.category};
+    final Map<String, List<WidgetPaletteEntry>> grouped = {
+      for (var cat in categories)
+        cat: widgetPalette.where((w) => w.category == cat).toList(),
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -82,40 +89,15 @@ class _BuildPaneState extends State<BuildPane> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             children: [
-              // Layout Widgets Section
-              _buildWidgetSection(
-                'Layout Widgets',
-                layoutWidgetsExpanded,
-                () => setState(() => layoutWidgetsExpanded = !layoutWidgetsExpanded),
-                [
-                  _buildWidgetCard(Icons.view_column, 'Column', 'Column Widget', 'Multiple children'),
-                  _buildWidgetCard(Icons.view_stream, 'Row', 'Row Widget', 'Multiple children'),
-                  _buildWidgetCard(Icons.crop_square, 'Container', 'Container Widget', 'Single child'),
-                  _buildWidgetCard(Icons.view_in_ar, 'Stack', 'Stack Widget', 'Multiple children'),
-                ].where((w) => _filterWidgetCard(w)).toList(),
-              ),
-              const SizedBox(height: 16),
-              // Display Widgets Section
-              _buildWidgetSection(
-                'Display Widgets',
-                displayWidgetsExpanded,
-                () => setState(() => displayWidgetsExpanded = !displayWidgetsExpanded),
-                [
-                  _buildWidgetCard(Icons.text_fields, 'Text', 'Text Widget', 'No children'),
-                  _buildWidgetCard(Icons.image, 'Image', 'Image Widget', 'No children'),
-                ].where((w) => _filterWidgetCard(w)).toList(),
-              ),
-              const SizedBox(height: 16),
-              // Input Widgets Section
-              _buildWidgetSection(
-                'Input Widgets',
-                inputWidgetsExpanded,
-                () => setState(() => inputWidgetsExpanded = !inputWidgetsExpanded),
-                [
-                  _buildWidgetCard(Icons.input, 'TextField', 'TextField Widget', 'No children'),
-                  null, // Empty slot
-                ].where((w) => _filterWidgetCard(w)).toList(),
-              ),
+              for (final cat in categories)
+                _buildWidgetSection(
+                  cat,
+                  _getExpandedState(cat),
+                  () => _toggleExpanded(cat),
+                  grouped[cat]!
+                      .map((entry) => _filterWidgetPaletteEntry(entry) ? _buildWidgetCard(entry) : null)
+                      .toList(),
+                ),
             ],
           ),
         ),
@@ -123,15 +105,106 @@ class _BuildPaneState extends State<BuildPane> {
     );
   }
 
-  bool _filterWidgetCard(Widget? widget) {
-    if (widget == null || searchQuery.isEmpty) return widget != null;
-    if (widget is Draggable<WidgetData>) {
-      final data = widget.data as WidgetData;
-      final label = data.label.toLowerCase();
-      final type = data.type.toLowerCase();
-      return label.contains(searchQuery) || type.contains(searchQuery);
+  bool _getExpandedState(String category) {
+    switch (category) {
+      case 'Layout Widgets':
+        return layoutWidgetsExpanded;
+      case 'Display Widgets':
+        return displayWidgetsExpanded;
+      case 'Input Widgets':
+        return inputWidgetsExpanded;
+      default:
+        return true;
     }
-    return true;
+  }
+
+  void _toggleExpanded(String category) {
+    setState(() {
+      switch (category) {
+        case 'Layout Widgets':
+          layoutWidgetsExpanded = !layoutWidgetsExpanded;
+          break;
+        case 'Display Widgets':
+          displayWidgetsExpanded = !displayWidgetsExpanded;
+          break;
+        case 'Input Widgets':
+          inputWidgetsExpanded = !inputWidgetsExpanded;
+          break;
+      }
+    });
+  }
+
+  bool _filterWidgetPaletteEntry(WidgetPaletteEntry entry) {
+    if (searchQuery.isEmpty) return true;
+    return entry.label.toLowerCase().contains(searchQuery) ||
+        entry.type.toLowerCase().contains(searchQuery);
+  }
+
+  Widget _buildWidgetCard(WidgetPaletteEntry entry) {
+    return Draggable<WidgetData>(
+      data: WidgetData(
+        type: entry.type,
+        label: entry.label,
+        icon: entry.icon,
+        position: const Offset(0, 0),
+      ),
+      feedback: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+        ),
+        child: Icon(entry.icon, color: const Color(0xFF212121), size: 32),
+      ),
+      childWhenDragging: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF3F3F3F),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
+        ),
+        child: const Center(
+          child: Text(
+            'Dragging...',
+            style: TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(entry.icon, color: const Color(0xFF212121), size: 28),
+              const SizedBox(height: 4),
+              Text(
+                entry.label,
+                style: const TextStyle(
+                  color: Color(0xFF212121),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                entry.childrenInfo,
+                style: const TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 10,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildWidgetSection(String title, bool isExpanded, VoidCallback onToggle, List<Widget?> widgets) {
@@ -175,73 +248,6 @@ class _BuildPaneState extends State<BuildPane> {
     );
   }
 
-  Widget _buildWidgetCard(IconData icon, String label, String widgetType, String childrenInfo) {
-    return Draggable<WidgetData>(
-      data: WidgetData(
-        type: widgetType,
-        label: label,
-        icon: icon,
-        position: const Offset(0, 0),
-      ),
-      feedback: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0).withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
-        ),
-        child: Icon(icon, color: const Color(0xFF212121), size: 32),
-      ),
-      childWhenDragging: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF3F3F3F),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
-        ),
-        child: const Center(
-          child: Text(
-            'Dragging...',
-            style: TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
-          ),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: const Color(0xFF212121), size: 28),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF212121),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                childrenInfo,
-                style: const TextStyle(
-                  color: Color(0xFF666666),
-                  fontSize: 10,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmptyCard() {
     return Container(
       decoration: BoxDecoration(
@@ -250,4 +256,99 @@ class _BuildPaneState extends State<BuildPane> {
       ),
     );
   }
-} 
+}
+
+class WidgetPaletteEntry {
+  final String label;
+  final String type;
+  final IconData icon;
+  final String category;
+  final String childrenInfo;
+  final List<PropertyDefinition> properties;
+  final int maxChildren;
+  final bool canHaveChildren;
+
+  const WidgetPaletteEntry({
+    required this.label,
+    required this.type,
+    required this.icon,
+    required this.category,
+    required this.childrenInfo,
+    required this.properties,
+    required this.maxChildren,
+    required this.canHaveChildren,
+  });
+}
+
+List<WidgetPaletteEntry> widgetPalette = [
+  WidgetPaletteEntry(
+    label: 'Column',
+    type: 'Column Widget',
+    icon: Icons.view_column,
+    category: 'Layout Widgets',
+    childrenInfo: 'Multiple children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Column Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Column Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Column Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'Row',
+    type: 'Row Widget',
+    icon: Icons.view_stream,
+    category: 'Layout Widgets',
+    childrenInfo: 'Multiple children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Row Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Row Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Row Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'Container',
+    type: 'Container Widget',
+    icon: Icons.crop_square,
+    category: 'Layout Widgets',
+    childrenInfo: 'Single child',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Container Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Container Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Container Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'Stack',
+    type: 'Stack Widget',
+    icon: Icons.view_in_ar,
+    category: 'Layout Widgets',
+    childrenInfo: 'Multiple children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Stack Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Stack Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Stack Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'Text',
+    type: 'Text Widget',
+    icon: Icons.text_fields,
+    category: 'Display Widgets',
+    childrenInfo: 'No children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Text Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Text Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Text Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'Image',
+    type: 'Image Widget',
+    icon: Icons.image,
+    category: 'Display Widgets',
+    childrenInfo: 'No children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('Image Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('Image Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('Image Widget').canHaveChildren,
+  ),
+  WidgetPaletteEntry(
+    label: 'TextField',
+    type: 'TextField Widget',
+    icon: Icons.input,
+    category: 'Input Widgets',
+    childrenInfo: 'No children',
+    properties: WidgetPropertiesService.getPropertyDefinitions('TextField Widget'),
+    maxChildren: WidgetPropertiesService.getConstraints('TextField Widget').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('TextField Widget').canHaveChildren,
+  ),
+]; 
