@@ -388,7 +388,7 @@ class DesignCanvasState extends State<DesignCanvas> {
   }
 
   Widget _buildNodeContainer(WidgetNode node, Widget childContent, Size visualSize, bool isSelected, bool isHovered, bool isScaffold) {
-    return GestureDetector(
+    Widget container = GestureDetector(
       onTap: () => widget.onWidgetSelected(node.id),
       child: Container(
         width: visualSize.width,
@@ -446,6 +446,91 @@ class DesignCanvasState extends State<DesignCanvas> {
             ),
             Expanded(child: childContent),
           ],
+        ),
+      ),
+    );
+
+    // Add resize handles if selected
+    if (isSelected) {
+      container = Stack(
+        children: [
+          container,
+          // Top-left handle
+          Positioned(
+            left: -8,
+            top: -8,
+            child: _buildResizeHandle(node, visualSize, dx: -1, dy: -1),
+          ),
+          // Top-right handle
+          Positioned(
+            right: -8,
+            top: -8,
+            child: _buildResizeHandle(node, visualSize, dx: 1, dy: -1),
+          ),
+          // Bottom-left handle
+          Positioned(
+            left: -8,
+            bottom: -8,
+            child: _buildResizeHandle(node, visualSize, dx: -1, dy: 1),
+          ),
+          // Bottom-right handle
+          Positioned(
+            right: -8,
+            bottom: -8,
+            child: _buildResizeHandle(node, visualSize, dx: 1, dy: 1),
+          ),
+        ],
+      );
+    }
+    return container;
+  }
+
+  Widget _buildResizeHandle(WidgetNode node, Size visualSize, {required int dx, required int dy}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onPanStart: (_) {
+        setState(() {
+          _resizingWidgetId = node.id;
+        });
+      },
+      onPanUpdate: (details) {
+        if (_resizingWidgetId == node.id) {
+          double scale = _canvasScale;
+          double newWidth = visualSize.width + details.delta.dx * dx * (1 / scale);
+          double newHeight = visualSize.height + details.delta.dy * dy * (1 / scale);
+          double minWidth = 32;
+          double minHeight = 32;
+          newWidth = newWidth.clamp(minWidth, 2000);
+          newHeight = newHeight.clamp(minHeight, 2000);
+          Offset newPosition = node.position;
+          if (dx == -1) newPosition = newPosition.translate(details.delta.dx * (1 / scale), 0);
+          if (dy == -1) newPosition = newPosition.translate(0, details.delta.dy * (1 / scale));
+          widget.onWidgetResized(
+            node.id,
+            Size(newWidth, newHeight),
+          );
+          // Optionally, update position for top/left handles
+          if (dx == -1 || dy == -1) {
+            widget.onWidgetSelected(node.id); // keep selected
+            widget.onWidgetMoved(
+              node.id,
+              newPosition,
+            );
+          }
+        }
+      },
+      onPanEnd: (_) {
+        setState(() {
+          _resizingWidgetId = null;
+        });
+      },
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.green, width: 2),
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );
