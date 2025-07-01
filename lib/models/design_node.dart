@@ -42,7 +42,7 @@ class DesignNode extends ChangeNotifier {
 
   // Helper: find a node by widgetNode id
   DesignNode? findById(String id) {
-    if (widgetNode.id == id) return this;
+    if (widgetNode.uid == id) return this;
     for (final child in children) {
       final found = child.findById(id);
       if (found != null) return found;

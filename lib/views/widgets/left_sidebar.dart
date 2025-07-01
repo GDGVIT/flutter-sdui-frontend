@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_sdui_frontend/viewmodels/design_canvas_viewmodel.dart';
 import '../../models/widget_node.dart';
 import '../../models/app_theme.dart';
 import '../../models/widget_data.dart';
@@ -6,6 +7,8 @@ import 'build_pane.dart';
 import 'widget_tree_pane.dart';
 import 'import_pane.dart';
 import 'export_pane.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert';
 
 // Stub for ColorPickerDialog
 class ColorPickerDialog extends StatelessWidget {
@@ -75,7 +78,24 @@ class LeftSidebar extends StatelessWidget {
         onThemeChanged: onThemeChanged,
       );
     } else if (selectedPane == 'import') {
-      return const ImportPane();
+      return ImportPane(
+        onImportJson: (jsonString) {
+          try {
+            final json = jsonDecode(jsonString);
+            if (json is Map<String, dynamic>) {
+              Provider.of<DesignCanvasViewModel>(context, listen: false).importFromSduiJson(json);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('JSON must be an object')),
+              );
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Invalid JSON: $e')),
+            );
+          }
+        },
+      );
     } else if (selectedPane == 'export') {
       return const ExportPane();
     } else {

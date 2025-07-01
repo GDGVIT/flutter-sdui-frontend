@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/widget_node.dart';
 import '../../models/app_theme.dart';
+import 'package:flutter_sdui/flutter_sdui.dart';
+import '../../viewmodels/design_canvas_viewmodel.dart';
 
 class PreviewCanvas extends StatelessWidget {
   final WidgetNode widgetRoot;
@@ -14,14 +16,19 @@ class PreviewCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Phone-like frame
-    return Center(
+    // If root is SDUI, render using .toFlutterWidget()
+    if (widgetRoot.type.startsWith('Sdui')) {
+      final sduiWidget = DesignCanvasViewModel().widgetNodeToSduiWidget(widgetRoot);
+      return sduiWidget.toFlutterWidget();
+    } else {
+      // Phone-like frame
+      return Center(
         child: Container(
-        width: 360,
-        height: 640,
+          width: 360,
+          height: 640,
           decoration: BoxDecoration(
             color: Colors.black,
-          borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.2),
@@ -32,13 +39,14 @@ class PreviewCanvas extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-              child: Material(
-                color: appTheme.backgroundColor,
-            child: _buildWidgetNode(widgetRoot),
+            child: Material(
+              color: appTheme.backgroundColor,
+              child: _buildWidgetNode(widgetRoot),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildWidgetNode(WidgetNode node) {
@@ -70,8 +78,8 @@ class PreviewCanvas extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
         ],
-          );
-        } else {
+      );
+    } else {
       return Center(
         child: Text(
           node.label,

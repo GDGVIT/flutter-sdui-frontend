@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class WidgetNode {
-  final String id;
+  final String uid;
   final String type;
   final String label;
   final IconData icon;
@@ -11,7 +11,7 @@ class WidgetNode {
   final Map<String, dynamic> properties;
 
   const WidgetNode({
-    required this.id,
+    required this.uid,
     required this.type,
     required this.label,
     required this.icon,
@@ -22,7 +22,7 @@ class WidgetNode {
   });
 
   WidgetNode copyWith({
-    String? id,
+    String? uid,
     String? type,
     String? label,
     IconData? icon,
@@ -32,7 +32,7 @@ class WidgetNode {
     Map<String, dynamic>? properties,
   }) {
     return WidgetNode(
-      id: id ?? this.id,
+      uid: uid ?? this.uid,
       type: type ?? this.type,
       label: label ?? this.label,
       icon: icon ?? this.icon,
@@ -45,7 +45,7 @@ class WidgetNode {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'uid': uid,
       'type': type,
       'label': label,
       'position': {'dx': position.dx, 'dy': position.dy},
@@ -57,7 +57,7 @@ class WidgetNode {
 
   factory WidgetNode.fromJson(Map<String, dynamic> json) {
     return WidgetNode(
-      id: json['id'],
+      uid: json['uid'] ?? json['id'],
       type: json['type'],
       label: json['label'],
       icon: WidgetNode.getIconFromType(json['type']),

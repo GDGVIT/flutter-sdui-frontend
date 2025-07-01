@@ -18,6 +18,7 @@ dependencies:
   flutter_sdui: 
     path: ../flutter-sdui-package
   file_picker: ^10.2.0
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

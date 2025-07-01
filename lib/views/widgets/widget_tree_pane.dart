@@ -7,13 +7,18 @@ class WidgetConstraints {
   final int maxChildren;
   const WidgetConstraints({required this.canHaveChildren, required this.maxChildren});
   static WidgetConstraints getConstraints(String type) {
-    // Minimal stub logic
+    // Support both legacy and SDUI types
     switch (type) {
       case 'Column Widget':
       case 'Row Widget':
       case 'Stack Widget':
+      case 'SduiColumn':
+      case 'SduiRow':
+      case 'SduiStack':
         return WidgetConstraints(canHaveChildren: true, maxChildren: -1);
       case 'Container Widget':
+      case 'SduiContainer':
+      case 'SduiScaffold':
         return WidgetConstraints(canHaveChildren: true, maxChildren: 1);
       default:
         return WidgetConstraints(canHaveChildren: false, maxChildren: 0);
@@ -60,14 +65,14 @@ class WidgetTreePane extends StatelessWidget {
   }
 
   Widget _buildTreeNode(WidgetNode node, int depth) {
-    final isSelected = node.id == selectedWidgetId;
+    final isSelected = node.uid == selectedWidgetId;
     final constraints = WidgetConstraints.getConstraints(node.type);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: () => onWidgetSelected(node.id),
+          onTap: () => onWidgetSelected(node.uid),
           child: Container(
             color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.18) : Colors.transparent,
             child: Padding(

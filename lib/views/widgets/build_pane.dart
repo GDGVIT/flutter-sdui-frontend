@@ -3,6 +3,9 @@ import '../../models/widget_data.dart';
 import 'package:flutter_sdui/flutter_sdui.dart';
 import '../../services/widget_properties_service.dart';
 
+// Set to true to show experimental/legacy widgets in the palette
+const bool _showExperimentalWidgets = false;
+
 class BuildPane extends StatefulWidget {
   final Function(WidgetData) onWidgetDropped;
   final void Function(WidgetData, Offset)? onPaletteDragStart;
@@ -36,10 +39,15 @@ class _BuildPaneState extends State<BuildPane> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = <String>{for (var w in widgetPalette) w.category};
+    // Filter widget palette based on experimental toggle
+    final filteredWidgetPalette = _showExperimentalWidgets
+        ? _allWidgetPalette
+        : _allWidgetPalette.where((entry) => entry.type != 'SduiScaffold' && entry.type != 'Column Widget').toList();
+
+    final categories = <String>{for (var w in filteredWidgetPalette) w.category};
     final Map<String, List<WidgetPaletteEntry>> grouped = {
       for (var cat in categories)
-        cat: widgetPalette.where((w) => w.category == cat).toList(),
+        cat: filteredWidgetPalette.where((w) => w.category == cat).toList(),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,7 +283,7 @@ class WidgetPaletteEntry {
   });
 }
 
-List<WidgetPaletteEntry> widgetPalette = [
+List<WidgetPaletteEntry> _allWidgetPalette = [
   // --- SDUI Widgets Only ---
   WidgetPaletteEntry(
     label: 'SduiColumn',
@@ -367,7 +375,17 @@ List<WidgetPaletteEntry> widgetPalette = [
     maxChildren: WidgetPropertiesService.getConstraints('SduiIcon').maxChildren,
     canHaveChildren: WidgetPropertiesService.getConstraints('SduiIcon').canHaveChildren,
   ),
-  // Add legacy Column Widget
+  // SduiScaffold and legacy Column Widget are experimental/legacy
+  WidgetPaletteEntry(
+    label: 'SduiScaffold',
+    type: 'SduiScaffold',
+    icon: Icons.web_asset,
+    category: 'Layout Widgets',
+    childrenInfo: WidgetPropertiesService.getChildrenInfo('SduiScaffold'),
+    properties: WidgetPropertiesService.getPropertyDefinitions('SduiScaffold'),
+    maxChildren: WidgetPropertiesService.getConstraints('SduiScaffold').maxChildren,
+    canHaveChildren: WidgetPropertiesService.getConstraints('SduiScaffold').canHaveChildren,
+  ),
   WidgetPaletteEntry(
     label: 'Column',
     type: 'Column Widget',

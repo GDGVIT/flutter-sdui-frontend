@@ -12,6 +12,7 @@ class DesignCanvas extends StatefulWidget {
   final Function(String, WidgetData) onWidgetAdded;
   final Function(String, Offset) onWidgetMoved;
   final Function(String, Size) onWidgetResized;
+  final Function(String, String) onWidgetReparent;
 
   const DesignCanvas({
     super.key,
@@ -22,6 +23,7 @@ class DesignCanvas extends StatefulWidget {
     required this.onWidgetAdded,
     required this.onWidgetMoved,
     required this.onWidgetResized,
+    required this.onWidgetReparent,
   });
 
   @override
@@ -46,8 +48,19 @@ class DesignCanvasState extends State<DesignCanvas> {
   Offset? _dragPointerPositionLocal;
   String? _paletteDropTargetId;
 
+  // Scroll controllers for scrollbars
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+
   // Helper: get the RenderBox for the canvas
   RenderBox? get _canvasBox => context.findRenderObject() as RenderBox?;
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
+  }
 
   void _updatePointerPosition(PointerEvent event) {
     if (_isDraggingFromPalette) {
@@ -125,158 +138,208 @@ class DesignCanvasState extends State<DesignCanvas> {
 
   @override
   Widget build(BuildContext context) {
+    // --- Auto-enlarge: compute bounding box of all widgets ---
+    Size canvasSize = _computeCanvasSize(widget.widgetRoot);
+    const Size minCanvasSize = Size(1200, 900);
+    final double canvasWidth = canvasSize.width < minCanvasSize.width ? minCanvasSize.width : canvasSize.width;
+    final double canvasHeight = canvasSize.height < minCanvasSize.height ? minCanvasSize.height : canvasSize.height;
+
     return Column(
       children: [
         Expanded(
           child: Container(
             color: const Color(0xFF212121),
-            child: Stack(
-              children: [
-                // Canvas controls
-                Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2F2F2F),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF666666)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _canvasScale = (_canvasScale * 1.2).clamp(0.5, 3.0);
-                            });
-                          },
-                          icon: const Icon(Icons.zoom_in, color: Color(0xFFEDF1EE), size: 20),
-                          tooltip: 'Zoom In',
-                        ),
-                        Text(
-                          '${(_canvasScale * 100).round()}%',
-                          style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _canvasScale = (_canvasScale / 1.2).clamp(0.5, 3.0);
-                            });
-                          },
-                          icon: const Icon(Icons.zoom_out, color: Color(0xFFEDF1EE), size: 20),
-                          tooltip: 'Zoom Out',
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _canvasScale = 1.0;
-                              _canvasOffset = Offset.zero;
-                            });
-                          },
-                          icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 20),
-                          tooltip: 'Reset View',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Main canvas
-                Listener(
-                  onPointerHover: _updatePointerPosition,
-                  onPointerMove: _updatePointerPosition,
-                  child: GestureDetector(
-                    onPanUpdate: (details) {
-                      if (_resizingWidgetId == null) {
-                        setState(() {
-                          _canvasOffset += details.delta;
-                        });
-                      }
-                    },
-                    child: Transform.scale(
-                      scale: _canvasScale,
-                      child: Transform.translate(
-                        offset: _canvasOffset,
-                        child: Stack(
-                          children: [
-                            _buildWidgetNodeWithDnD(widget.widgetRoot, 0),
-                          ],
-                        ),
+            child: Scrollbar(
+              controller: _verticalScrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _verticalScrollController,
+                scrollDirection: Axis.vertical,
+                child: Scrollbar(
+                  controller: _horizontalScrollController,
+                  thumbVisibility: true,
+                  notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: canvasWidth,
+                      height: canvasHeight,
+                      child: Stack(
+                        children: [
+                          // Canvas controls
+                          Positioned(
+                            top: 16,
+                            right: 16,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2F2F2F),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFF666666)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _canvasScale = (_canvasScale * 1.2).clamp(0.5, 3.0);
+                                      });
+                                    },
+                                    icon: const Icon(Icons.zoom_in, color: Color(0xFFEDF1EE), size: 20),
+                                    tooltip: 'Zoom In',
+                                  ),
+                                  Text(
+                                    '${(_canvasScale * 100).round()}%',
+                                    style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _canvasScale = (_canvasScale / 1.2).clamp(0.5, 3.0);
+                                      });
+                                    },
+                                    icon: const Icon(Icons.zoom_out, color: Color(0xFFEDF1EE), size: 20),
+                                    tooltip: 'Zoom Out',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _canvasScale = 1.0;
+                                        _canvasOffset = Offset.zero;
+                                      });
+                                    },
+                                    icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 20),
+                                    tooltip: 'Reset View',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Main canvas (with pan/zoom)
+                          Listener(
+                            onPointerHover: _updatePointerPosition,
+                            onPointerMove: _updatePointerPosition,
+                            child: GestureDetector(
+                              onPanUpdate: (details) {
+                                if (_resizingWidgetId == null) {
+                                  setState(() {
+                                    _canvasOffset += details.delta;
+                                  });
+                                }
+                              },
+                              child: Transform.scale(
+                                scale: _canvasScale,
+                                child: Transform.translate(
+                                  offset: _canvasOffset,
+                                  child: Stack(
+                                    children: [
+                                      _buildWidgetNodeWithDnD(widget.widgetRoot, 0),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Custom drag feedback overlay
+                          if (_isDraggingFromPalette && _draggedWidgetData != null && _dragPointerPositionLocal != null)
+                            Positioned(
+                              left: _dragPointerPositionLocal!.dx - 40,
+                              top: _dragPointerPositionLocal!.dy - 40,
+                              child: IgnorePointer(
+                                child: Opacity(
+                                  opacity: 0.85,
+                                  child: _buildPaletteDragFeedback(_draggedWidgetData!),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                // Custom drag feedback overlay
-                if (_isDraggingFromPalette && _draggedWidgetData != null && _dragPointerPositionLocal != null)
-                  Positioned(
-                    left: _dragPointerPositionLocal!.dx - 40,
-                    top: _dragPointerPositionLocal!.dy - 40,
-                    child: IgnorePointer(
-                      child: Opacity(
-                        opacity: 0.85,
-                        child: _buildPaletteDragFeedback(_draggedWidgetData!),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
         ),
         // Reference: Regular Flutter Column
-        Container(
-          color: Colors.grey[200],
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Reference: Regular Flutter Column', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(width: 80, height: 40, color: Colors.red, margin: const EdgeInsets.only(bottom: 8)),
-                  Container(width: 120, height: 40, color: Colors.green, margin: const EdgeInsets.only(bottom: 8)),
-                  Container(width: 60, height: 40, color: Colors.blue),
-                ],
-              ),
-            ],
-          ),
-        ),
+        // Container(
+        //   color: Colors.grey[200],
+        //   padding: const EdgeInsets.all(16),
+        //   child: Column(
+        //     crossAxisAlignment: CrossAxisAlignment.start,
+        //     children: [
+        //       const Text('Reference: Regular Flutter Column', style: TextStyle(fontWeight: FontWeight.bold)),
+        //       const SizedBox(height: 8),
+        //       Column(
+        //         crossAxisAlignment: CrossAxisAlignment.start,
+        //         children: [
+        //           Container(width: 80, height: 40, color: Colors.red, margin: const EdgeInsets.only(bottom: 8)),
+        //           Container(width: 120, height: 40, color: Colors.green, margin: const EdgeInsets.only(bottom: 8)),
+        //           Container(width: 60, height: 40, color: Colors.blue),
+        //         ],
+        //       ),
+        //     ],
+        //   ),
+        // ),
       ],
     );
   }
 
-  Widget _buildWidgetNodeWithDnD(WidgetNode node, int depth) {
-    final isSelected = widget.selectedWidgetId == node.id;
-    final isHovered = _hoveredWidgetId == node.id;
-    final isScaffold = node.type == 'Scaffold';
+  Widget _buildWidgetNodeWithDnD(WidgetNode node, int depth, {bool insideStack = false}) {
+    final isSelected = widget.selectedWidgetId == node.uid;
+    final isHovered = _hoveredWidgetId == node.uid;
+    final isScaffold = node.type == 'Scaffold' || node.type == 'SduiScaffold';
     final visualSize = node.size;
     final visualPosition = node.position;
     final canAcceptChildren = _canAcceptChildren(node.type);
 
     // Advanced: Assign a GlobalKey for each drop target
-    GlobalKey dropKey = _dropTargetKeys[node.id] ??= GlobalKey();
+    GlobalKey dropKey = _dropTargetKeys[node.uid] ??= GlobalKey();
 
     Widget childContent;
-    if (node.type == 'Row Widget') {
-      childContent = Row(
-        children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1)).toList(),
+    // Multi-child parent: render all children regardless of type
+    if (node.type == 'Row Widget' || node.type == 'SduiRow' || node.type == 'Column Widget' || node.type == 'SduiColumn') {
+      print('Rendering children for node ${node.uid} (${node.type}):');
+      for (var child in node.children) {
+        print('  - ${child.uid} (${child.type})');
+      }
+      if (node.type == 'Row Widget' || node.type == 'SduiRow') {
+        childContent = Container(
+          width: node.size.width,
+          height: node.size.height,
+          child: Row(
+            children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
+          ),
+        );
+      } else {
+        childContent = Container(
+          width: node.size.width,
+          height: node.size.height,
+          child: Column(
+            children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
+          ),
+        );
+      }
+    } else if (node.type == 'Stack Widget' || node.type == 'SduiStack') {
+      childContent = Stack(
+        children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList(),
       );
-    } else if (node.type == 'Column Widget') {
-      childContent = Column(
-        children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1)).toList(),
-      );
-    } else if (node.type == 'Scaffold') {
+    } else if (node.type == 'SduiContainer') {
+      childContent = node.children.isNotEmpty
+        ? _buildWidgetNodeWithDnD(node.children.first, depth + 1, insideStack: false)
+        : const SizedBox.shrink();
+    } else if (node.type == 'Scaffold' || node.type == 'SduiScaffold') {
       final appBarTitle = node.properties['appBarTitle']?.toString() ?? '';
       final appBarColor = _parseColor(node.properties['appBarColor']?.toString() ?? '#FF232323');
       childContent = Column(
         children: [
           GestureDetector(
-            onTap: () => widget.onWidgetSelected(node.id),
+            onTap: () => widget.onWidgetSelected(node.uid),
             child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredWidgetId = node.id),
+              onEnter: (_) => setState(() => _hoveredWidgetId = node.uid),
               onExit: (_) => setState(() => _hoveredWidgetId = null),
               child: Material(
                 elevation: 2,
@@ -288,7 +351,7 @@ class DesignCanvasState extends State<DesignCanvas> {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: (widget.selectedWidgetId == node.id || _hoveredWidgetId == node.id)
+                        color: (widget.selectedWidgetId == node.uid || _hoveredWidgetId == node.uid)
                             ? const Color(0xFF4CAF50)
                             : Colors.transparent,
                         width: 3,
@@ -309,7 +372,7 @@ class DesignCanvasState extends State<DesignCanvas> {
           ),
           Expanded(
             child: node.children.isNotEmpty
-                ? Stack(children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1)).toList())
+                ? Stack(children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList())
                 : const SizedBox.shrink(),
           ),
         ],
@@ -334,7 +397,7 @@ class DesignCanvasState extends State<DesignCanvas> {
           return Stack(
             children: [
               baseNodeContainer,
-              if ((_isDraggingFromPalette && _paletteDropTargetId == node.id) || (!_isDraggingFromPalette && _deepestDropTargetId == node.id && candidateData.isNotEmpty))
+              if ((_isDraggingFromPalette && _paletteDropTargetId == node.uid) || (!_isDraggingFromPalette && _deepestDropTargetId == node.uid && candidateData.isNotEmpty))
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -356,40 +419,49 @@ class DesignCanvasState extends State<DesignCanvas> {
       );
     }
 
-    return Positioned(
-      left: visualPosition.dx,
-      top: visualPosition.dy,
-      child: DragTarget<WidgetNode>(
-        onWillAccept: (dragged) {
-          if (dragged == null || dragged.id == node.id || _isDescendant(dragged, node)) return false;
-          return canAcceptChildren;
-        },
-        onAccept: (dragged) {
-          setState(() {
-            _moveWidgetNode(dragged, node);
-          });
-        },
-        builder: (context, candidateData, rejectedData) {
-          return Draggable<WidgetNode>(
-            data: node,
-            feedback: Opacity(
-              opacity: 0.7,
-              child: _dragFeedback(node, visualSize),
-            ),
-            childWhenDragging: Opacity(
-              opacity: 0.3,
-              child: nodeContainer,
-            ),
+    Widget dragTarget = DragTarget<WidgetNode>(
+      onWillAccept: (dragged) {
+        final result = (dragged != null && dragged.uid != node.uid && !_isDescendant(dragged, node) && canAcceptChildren);
+        print('onWillAccept: dragged=${dragged?.type} (${dragged?.uid}), target=${node.type} (${node.uid}), result=$result');
+        return result;
+      },
+      onAccept: (dragged) {
+        print('onAccept: dragged=${dragged.type} (${dragged.uid}) into target=${node.type} (${node.uid})');
+        setState(() {
+          _moveWidgetNode(dragged, node);
+        });
+      },
+      builder: (context, candidateData, rejectedData) {
+        // Always wrap in Draggable<WidgetNode> for all node types
+        return Draggable<WidgetNode>(
+          data: node,
+          feedback: Opacity(
+            opacity: 0.7,
+            child: _dragFeedback(node, visualSize),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.3,
             child: nodeContainer,
-          );
-        },
-      ),
+          ),
+          child: nodeContainer,
+        );
+      },
     );
+
+    if (insideStack) {
+      return Positioned(
+        left: visualPosition.dx,
+        top: visualPosition.dy,
+        child: dragTarget,
+      );
+    } else {
+      return dragTarget;
+    }
   }
 
   Widget _buildNodeContainer(WidgetNode node, Widget childContent, Size visualSize, bool isSelected, bool isHovered, bool isScaffold) {
     Widget container = GestureDetector(
-      onTap: () => widget.onWidgetSelected(node.id),
+      onTap: () => widget.onWidgetSelected(node.uid),
       child: Container(
         width: visualSize.width,
         height: visualSize.height,
@@ -490,11 +562,11 @@ class DesignCanvasState extends State<DesignCanvas> {
       behavior: HitTestBehavior.translucent,
       onPanStart: (_) {
         setState(() {
-          _resizingWidgetId = node.id;
+          _resizingWidgetId = node.uid;
         });
       },
       onPanUpdate: (details) {
-        if (_resizingWidgetId == node.id) {
+        if (_resizingWidgetId == node.uid) {
           double scale = _canvasScale;
           double newWidth = visualSize.width + details.delta.dx * dx * (1 / scale);
           double newHeight = visualSize.height + details.delta.dy * dy * (1 / scale);
@@ -506,14 +578,14 @@ class DesignCanvasState extends State<DesignCanvas> {
           if (dx == -1) newPosition = newPosition.translate(details.delta.dx * (1 / scale), 0);
           if (dy == -1) newPosition = newPosition.translate(0, details.delta.dy * (1 / scale));
           widget.onWidgetResized(
-            node.id,
+            node.uid,
             Size(newWidth, newHeight),
           );
           // Optionally, update position for top/left handles
           if (dx == -1 || dy == -1) {
-            widget.onWidgetSelected(node.id); // keep selected
+            widget.onWidgetSelected(node.uid); // keep selected
             widget.onWidgetMoved(
-              node.id,
+              node.uid,
               newPosition,
             );
           }
@@ -555,7 +627,14 @@ class DesignCanvasState extends State<DesignCanvas> {
   }
 
   bool _canAcceptChildren(String type) {
-    return type == 'Row Widget' || type == 'Column Widget' || type == 'Stack Widget' || type == 'Scaffold';
+    return type == 'Row Widget' ||
+           type == 'Column Widget' ||
+           type == 'Stack Widget' ||
+           type == 'Scaffold' ||
+           type == 'SduiColumn' ||
+           type == 'SduiRow' ||
+           type == 'SduiScaffold' ||
+           type == 'SduiContainer';
   }
 
   bool _isDescendant(WidgetNode parent, WidgetNode possibleDescendant) {
@@ -567,9 +646,8 @@ class DesignCanvasState extends State<DesignCanvas> {
   }
 
   void _moveWidgetNode(WidgetNode dragged, WidgetNode newParent) {
-    // This is a placeholder for the move logic. You should update the view model to actually move the node in the tree.
-    // For now, this just triggers a UI update.
-    setState(() {});
+    print('_moveWidgetNode: dragged=${dragged.type} (${dragged.uid}), newParent=${newParent.type} (${newParent.uid})');
+    widget.onWidgetReparent(dragged.uid, newParent.uid);
   }
 
   Color _parseColor(String colorString) {
@@ -594,5 +672,23 @@ class DesignCanvasState extends State<DesignCanvas> {
         child: Icon(data.icon, color: const Color(0xFF212121), size: 32),
       ),
     );
+  }
+
+  // Recursively compute the bounding box of all widgets
+  Size _computeCanvasSize(WidgetNode node) {
+    double maxX = node.position.dx + node.size.width;
+    double maxY = node.position.dy + node.size.height;
+    for (final child in node.children) {
+      final childSize = _computeCanvasSize(child);
+      if (child.position.dx + child.size.width > maxX) {
+        maxX = child.position.dx + child.size.width;
+      }
+      if (child.position.dy + child.size.height > maxY) {
+        maxY = child.position.dy + child.size.height;
+      }
+      if (childSize.width > maxX) maxX = childSize.width;
+      if (childSize.height > maxY) maxY = childSize.height;
+    }
+    return Size(maxX, maxY);
   }
 } 

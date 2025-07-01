@@ -121,6 +121,7 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                               onWidgetAdded: viewModel.addWidgetToParent,
                               onWidgetMoved: viewModel.moveWidget,
                               onWidgetResized: viewModel.resizeWidget,
+                              onWidgetReparent: viewModel.reparentWidget,
                             ),
                     ),
                   ],
