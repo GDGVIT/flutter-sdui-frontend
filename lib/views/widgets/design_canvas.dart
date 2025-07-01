@@ -52,6 +52,13 @@ class DesignCanvasState extends State<DesignCanvas> {
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
 
+  // --- Resize tracking ---
+  Offset? _resizeStartPointer;
+  Size? _resizeStartSize;
+  Offset? _resizeStartPosition;
+  int? _resizeDx;
+  int? _resizeDy;
+
   // Helper: get the RenderBox for the canvas
   RenderBox? get _canvasBox => context.findRenderObject() as RenderBox?;
 
@@ -560,29 +567,36 @@ class DesignCanvasState extends State<DesignCanvas> {
   Widget _buildResizeHandle(WidgetNode node, Size visualSize, {required int dx, required int dy}) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onPanStart: (_) {
+      onPanStart: (details) {
         setState(() {
           _resizingWidgetId = node.uid;
+          _resizeStartPointer = details.globalPosition;
+          _resizeStartSize = visualSize;
+          _resizeStartPosition = node.position;
+          _resizeDx = dx;
+          _resizeDy = dy;
         });
       },
       onPanUpdate: (details) {
-        if (_resizingWidgetId == node.uid) {
+        if (_resizingWidgetId == node.uid && _resizeStartPointer != null && _resizeStartSize != null && _resizeStartPosition != null && _resizeDx != null && _resizeDy != null) {
           double scale = _canvasScale;
-          double newWidth = visualSize.width + details.delta.dx * dx * (1 / scale);
-          double newHeight = visualSize.height + details.delta.dy * dy * (1 / scale);
+          Offset pointer = details.globalPosition;
+          Offset delta = (pointer - _resizeStartPointer!) * (1 / scale);
+          double newWidth = _resizeStartSize!.width + delta.dx * _resizeDx!;
+          double newHeight = _resizeStartSize!.height + delta.dy * _resizeDy!;
           double minWidth = 32;
           double minHeight = 32;
           newWidth = newWidth.clamp(minWidth, 2000);
           newHeight = newHeight.clamp(minHeight, 2000);
-          Offset newPosition = node.position;
-          if (dx == -1) newPosition = newPosition.translate(details.delta.dx * (1 / scale), 0);
-          if (dy == -1) newPosition = newPosition.translate(0, details.delta.dy * (1 / scale));
+          Offset newPosition = _resizeStartPosition!;
+          if (_resizeDx == -1) newPosition = newPosition.translate(delta.dx, 0);
+          if (_resizeDy == -1) newPosition = newPosition.translate(0, delta.dy);
           widget.onWidgetResized(
             node.uid,
             Size(newWidth, newHeight),
           );
           // Optionally, update position for top/left handles
-          if (dx == -1 || dy == -1) {
+          if (_resizeDx == -1 || _resizeDy == -1) {
             widget.onWidgetSelected(node.uid); // keep selected
             widget.onWidgetMoved(
               node.uid,
@@ -594,6 +608,11 @@ class DesignCanvasState extends State<DesignCanvas> {
       onPanEnd: (_) {
         setState(() {
           _resizingWidgetId = null;
+          _resizeStartPointer = null;
+          _resizeStartSize = null;
+          _resizeStartPosition = null;
+          _resizeDx = null;
+          _resizeDy = null;
         });
       },
       child: Container(
