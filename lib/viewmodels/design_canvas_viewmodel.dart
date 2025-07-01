@@ -111,34 +111,48 @@ class DesignCanvasViewModel extends ChangeNotifier {
         label: widgetData.label,
         icon: widgetData.icon,
         position: _getStaggeredChildPosition(node, newChildren.length),
-        size: WidgetPropertiesService.getDefaultSize(widgetData.type),
+        size: (() {
+          final parentSize = node.size;
+          if ((widgetData.type == 'SduiColumn' || widgetData.type == 'SduiRow' || widgetData.type == 'SduiContainer') && parentSize != null) {
+            return Size(parentSize.width * 0.8, parentSize.height * 0.8);
+          }
+          return WidgetPropertiesService.getDefaultSize(widgetData.type);
+        })(),
         children: const [],
         properties: WidgetPropertiesService.getDefaultProperties(widgetData.type),
       );
-      // If adding a SduiColumn or SduiRow, set its size to 80% of parent
-      if ((widgetData.type == 'SduiColumn' || widgetData.type == 'SduiRow') && node.size != null) {
-        final newProps = Map<String, dynamic>.from(newWidget.properties);
-        newProps['width'] = node.size.width * 0.8;
-        newProps['height'] = node.size.height * 0.8;
-        newWidget = newWidget.copyWith(properties: newProps, size: Size(newProps['width'], newProps['height']));
-      }
       newChildren = [...newChildren, newWidget];
 
-      // --- Auto-size children for SDUI multi-child parents ---
-      if (node.type == 'SduiColumn' || node.type == 'SduiRow') {
-        final n = newChildren.length;
-        final parentSize = node.size;
-        newChildren = newChildren.map((child) {
-          final newProps = Map<String, dynamic>.from(child.properties);
-          if (node.type == 'SduiColumn') {
-            newProps['height'] = parentSize.height / n;
-          } else if (node.type == 'SduiRow') {
-            newProps['width'] = parentSize.width / n;
-          }
-          return child.copyWith(properties: newProps);
-        }).toList();
+      // --- Improved auto-size logic for SDUI multi-child parents ---
+      if (node.type == 'SduiColumn') {
+        // Grow parent if needed to fit all children
+        double totalHeight = newChildren.fold(0.0, (sum, child) => sum + (child.size.height));
+        double parentHeight = node.size.height;
+        double parentWidth = node.size.width;
+        if (totalHeight > parentHeight) {
+          parentHeight = totalHeight * 2;
+        }
+        // Shrink children if parent is fixed and overflows
+        if (totalHeight > parentHeight && parentConstraints.maxChildren != -1) {
+          double newChildHeight = parentHeight / newChildren.length;
+          newChildren = newChildren.map((child) => child.copyWith(size: Size(child.size.width, newChildHeight))).toList();
+        }
+        // Update parent size
+        node = node.copyWith(size: Size(parentWidth, parentHeight));
+      } else if (node.type == 'SduiRow') {
+        double totalWidth = newChildren.fold(0.0, (sum, child) => sum + (child.size.width));
+        double parentWidth = node.size.width;
+        double parentHeight = node.size.height;
+        if (totalWidth > parentWidth) {
+          parentWidth = totalWidth * 2;
+        }
+        if (totalWidth > parentWidth && parentConstraints.maxChildren != -1) {
+          double newChildWidth = parentWidth / newChildren.length;
+          newChildren = newChildren.map((child) => child.copyWith(size: Size(newChildWidth, child.size.height))).toList();
+        }
+        node = node.copyWith(size: Size(parentWidth, parentHeight));
       }
-      // --- End auto-size logic ---
+      // --- End improved auto-size logic ---
 
       // --- Auto-parent-resize for multi-child parents (recursive) ---
       WidgetNode resizedNode = node.copyWith(children: newChildren);
