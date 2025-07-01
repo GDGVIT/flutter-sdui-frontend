@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widget_registry.dart';
 
 class WidgetData {
   final String type;
@@ -38,30 +39,9 @@ class WidgetData {
   factory WidgetData.fromJson(Map<String, dynamic> json) {
     return WidgetData(
       type: json['type'],
-      label: json['label'],
-      icon: WidgetData.getIconFromType(json['type']),
+      label: WidgetRegistry.getLabel(json['type']),
+      icon: WidgetRegistry.getIcon(json['type']),
       position: Offset(json['position']['dx'], json['position']['dy']),
     );
-  }
-
-  static IconData getIconFromType(String type) {
-    switch (type) {
-      case 'Column Widget':
-        return Icons.view_column;
-      case 'Row Widget':
-        return Icons.view_stream;
-      case 'Container Widget':
-        return Icons.crop_square;
-      case 'Stack Widget':
-        return Icons.view_in_ar;
-      case 'Text Widget':
-        return Icons.text_fields;
-      case 'TextField Widget':
-        return Icons.input;
-      case 'Image Widget':
-        return Icons.image;
-      default:
-        return Icons.widgets;
-    }
   }
 } 

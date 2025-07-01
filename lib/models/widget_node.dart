@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'widget_registry.dart';
 
 class WidgetNode {
   final String uid;
@@ -59,35 +60,12 @@ class WidgetNode {
     return WidgetNode(
       uid: json['uid'] ?? json['id'],
       type: json['type'],
-      label: json['label'],
-      icon: WidgetNode.getIconFromType(json['type']),
+      label: WidgetRegistry.getLabel(json['type']),
+      icon: WidgetRegistry.getIcon(json['type']),
       position: Offset(json['position']['dx'], json['position']['dy']),
       size: Size(json['size']['width'], json['size']['height']),
       children: (json['children'] as List).map((child) => WidgetNode.fromJson(child)).toList(),
       properties: Map<String, dynamic>.from(json['properties']),
     );
-  }
-
-  static IconData getIconFromType(String type) {
-    switch (type) {
-      case 'Scaffold':
-        return Icons.web_asset;
-      case 'Column Widget':
-        return Icons.view_column;
-      case 'Row Widget':
-        return Icons.view_stream;
-      case 'Container Widget':
-        return Icons.crop_square;
-      case 'Stack Widget':
-        return Icons.view_in_ar;
-      case 'Text Widget':
-        return Icons.text_fields;
-      case 'TextField Widget':
-        return Icons.input;
-      case 'Image Widget':
-        return Icons.image;
-      default:
-        return Icons.widgets;
-    }
   }
 } 
