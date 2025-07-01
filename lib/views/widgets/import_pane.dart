@@ -3,7 +3,8 @@ import 'dart:convert';
 
 class ImportPane extends StatefulWidget {
   final void Function(String) onImportJson;
-  const ImportPane({super.key, required this.onImportJson});
+  final bool Function()? isProjectNonEmpty;
+  const ImportPane({super.key, required this.onImportJson, this.isProjectNonEmpty});
 
   @override
   State<ImportPane> createState() => _ImportPaneState();
@@ -47,18 +48,29 @@ class _ImportPaneState extends State<ImportPane> {
           ),
           const SizedBox(height: 12),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               try {
-                // final json = jsonDecode(_controller.text);
-                // if (json is Map<String, dynamic>) {
-                //   widget.onImportJson(json);
-                //   setState(() => _error = null);
-                //   ScaffoldMessenger.of(context).showSnackBar(
-                //     const SnackBar(content: Text('Imported successfully!')),
-                //   );
-                // } else {
-                //   setState(() => _error = 'JSON must be an object');
-                // }
+                if (widget.isProjectNonEmpty != null && widget.isProjectNonEmpty!()) {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: const Color(0xFF2F2F2F),
+                      title: const Text('Import Project?', style: TextStyle(color: Color(0xFFEDF1EE))),
+                      content: const Text('Importing will overwrite your current project and you may lose unsaved changes. Continue?', style: TextStyle(color: Color(0xFFEDF1EE))),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancel', style: TextStyle(color: Color(0xFFFF5252))),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text('Import', style: TextStyle(color: Color(0xFF4CAF50))),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                }
                 widget.onImportJson(_controller.text);
               } catch (e) {
                 setState(() => _error = 'Invalid JSON');

@@ -87,6 +87,10 @@ class LeftSidebar extends StatelessWidget {
             );
           }
         },
+        isProjectNonEmpty: () {
+          // Consider project non-empty if root has children or is not default
+          return scaffoldWidget.children.isNotEmpty || scaffoldWidget.type != 'SduiScaffold';
+        },
       );
     } else if (selectedPane == 'export') {
       return const ExportPane();

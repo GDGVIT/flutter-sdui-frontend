@@ -7,6 +7,7 @@ import 'widget_node_dnd.dart';
 import 'node_container.dart';
 import 'palette_drag_feedback.dart';
 import 'canvas_utils.dart';
+import '../../services/widget_properties_service.dart';
 
 class DesignCanvas extends StatefulWidget {
   final WidgetNode widgetRoot;
@@ -125,8 +126,43 @@ class DesignCanvasState extends State<DesignCanvas> {
     }
   }
 
-  void endPaletteDrag() {
+  void endPaletteDrag() async {
     if (_isDraggingFromPalette && _paletteDropTargetId != null && _draggedWidgetData != null) {
+      // Check if drop target is a single-child parent with a child
+      final parentNode = _findNodeById(widget.widgetRoot, _paletteDropTargetId!);
+      if (parentNode != null) {
+        final constraints = WidgetPropertiesService.getConstraints(parentNode.type);
+        if (constraints.maxChildren == 1 && parentNode.children.isNotEmpty) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              backgroundColor: const Color(0xFF2F2F2F),
+              title: const Text('Replace Child?', style: TextStyle(color: Color(0xFFEDF1EE))),
+              content: const Text('This parent can only have one child. Adding a new widget will replace the existing child and you may lose data. Continue?', style: TextStyle(color: Color(0xFFEDF1EE))),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFFFF5252))),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Replace', style: TextStyle(color: Color(0xFF4CAF50))),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) {
+            setState(() {
+              _isDraggingFromPalette = false;
+              _draggedWidgetData = null;
+              _dragPointerPositionGlobal = null;
+              _dragPointerPositionLocal = null;
+              _paletteDropTargetId = null;
+            });
+            return;
+          }
+        }
+      }
       widget.onWidgetAdded(_paletteDropTargetId!, _draggedWidgetData!);
     }
     setState(() {
@@ -136,6 +172,15 @@ class DesignCanvasState extends State<DesignCanvas> {
       _dragPointerPositionLocal = null;
       _paletteDropTargetId = null;
     });
+  }
+
+  WidgetNode? _findNodeById(WidgetNode node, String id) {
+    if (node.uid == id) return node;
+    for (final child in node.children) {
+      final found = _findNodeById(child, id);
+      if (found != null) return found;
+    }
+    return null;
   }
 
   void _updatePaletteDragPosition(Offset globalPosition) {
