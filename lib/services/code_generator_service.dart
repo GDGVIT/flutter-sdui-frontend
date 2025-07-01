@@ -1,10 +1,30 @@
 import '../models/widget_node.dart';
 import '../models/app_theme.dart';
+import 'package:flutter_sdui/flutter_sdui.dart';
+import '../viewmodels/design_canvas_viewmodel.dart';
+import 'dart:convert';
 
 class CodeGeneratorService {
   static String generateCode(WidgetNode scaffoldWidget, AppTheme theme) {
+    // If root is SDUI, output Dart code using SDUI widgets
+    if (scaffoldWidget.type.startsWith('Sdui')) {
+      final sduiWidget = DesignCanvasViewModel().widgetNodeToSduiWidget(scaffoldWidget);
+      final buffer = StringBuffer();
+      buffer.writeln("import 'package:flutter/material.dart';");
+      buffer.writeln("import 'package:flutter_sdui/flutter_sdui.dart';");
+      buffer.writeln('');
+      buffer.writeln('class GeneratedSduiWidget extends StatelessWidget {');
+      buffer.writeln('  const GeneratedSduiWidget({super.key});');
+      buffer.writeln('');
+      buffer.writeln('  @override');
+      buffer.writeln('  Widget build(BuildContext context) {');
+      buffer.writeln('    return ${_generateSduiWidgetCode(sduiWidget, 2)};');
+      buffer.writeln('  }');
+      buffer.writeln('}');
+      return buffer.toString();
+    }
+    // Legacy: output Flutter widget code
     final buffer = StringBuffer();
-    
     buffer.writeln('import \'package:flutter/material.dart\';');
     buffer.writeln('');
     buffer.writeln('class GeneratedWidget extends StatelessWidget {');
@@ -15,7 +35,92 @@ class CodeGeneratorService {
     buffer.writeln('    return ${_generateWidgetCode(scaffoldWidget, 2, theme)};');
     buffer.writeln('  }');
     buffer.writeln('}');
-    
+    return buffer.toString();
+  }
+
+  static String _generateSduiWidgetCode(dynamic sduiWidget, int indent) {
+    final indentStr = '  ' * indent;
+    final buffer = StringBuffer();
+    final type = sduiWidget.runtimeType.toString();
+    switch (type) {
+      case 'SduiScaffold':
+        buffer.write('SduiScaffold(');
+        if (sduiWidget.backgroundColor != null) buffer.write('\n${indentStr}backgroundColor: Color(${sduiWidget.backgroundColor.value}),');
+        if (sduiWidget.body != null) buffer.write('\n${indentStr}body: ${_generateSduiWidgetCode(sduiWidget.body, indent + 1)},');
+        buffer.write('\n${'  ' * (indent - 1)})');
+        break;
+      case 'SduiColumn':
+        buffer.write('SduiColumn(');
+        if (sduiWidget.children != null && sduiWidget.children.isNotEmpty) {
+          buffer.write('\n${indentStr}children: [');
+          for (final child in sduiWidget.children) {
+            buffer.write('\n${indentStr}  ${_generateSduiWidgetCode(child, indent + 2)},');
+          }
+          buffer.write('\n${indentStr}],');
+        }
+        if (sduiWidget.mainAxisAlignment != null) buffer.write('\n${indentStr}mainAxisAlignment: MainAxisAlignment.${sduiWidget.mainAxisAlignment.toString().split('.').last},');
+        if (sduiWidget.crossAxisAlignment != null) buffer.write('\n${indentStr}crossAxisAlignment: CrossAxisAlignment.${sduiWidget.crossAxisAlignment.toString().split('.').last},');
+        buffer.write('\n${'  ' * (indent - 1)})');
+        break;
+      case 'SduiRow':
+        buffer.write('SduiRow(');
+        if (sduiWidget.children != null && sduiWidget.children.isNotEmpty) {
+          buffer.write('\n${indentStr}children: [');
+          for (final child in sduiWidget.children) {
+            buffer.write('\n${indentStr}  ${_generateSduiWidgetCode(child, indent + 2)},');
+          }
+          buffer.write('\n${indentStr}],');
+        }
+        if (sduiWidget.mainAxisAlignment != null) buffer.write('\n${indentStr}mainAxisAlignment: MainAxisAlignment.${sduiWidget.mainAxisAlignment.toString().split('.').last},');
+        if (sduiWidget.crossAxisAlignment != null) buffer.write('\n${indentStr}crossAxisAlignment: CrossAxisAlignment.${sduiWidget.crossAxisAlignment.toString().split('.').last},');
+        buffer.write('\n${'  ' * (indent - 1)})');
+        break;
+      case 'SduiContainer':
+        buffer.write('SduiContainer(');
+        if (sduiWidget.width != null) buffer.write('\n${indentStr}width: ${sduiWidget.width},');
+        if (sduiWidget.height != null) buffer.write('\n${indentStr}height: ${sduiWidget.height},');
+        if (sduiWidget.color != null) buffer.write('\n${indentStr}color: Color(${sduiWidget.color.value}),');
+        if (sduiWidget.child != null) buffer.write('\n${indentStr}child: ${_generateSduiWidgetCode(sduiWidget.child, indent + 1)},');
+        buffer.write('\n${'  ' * (indent - 1)})');
+        break;
+      case 'SduiText':
+        buffer.write('SduiText(');
+        buffer.write("'${sduiWidget.text.replaceAll("'", "\\'")}'");
+        if (sduiWidget.fontSize != null) buffer.write(', fontSize: ${sduiWidget.fontSize}');
+        if (sduiWidget.color != null) buffer.write(', color: Color(${sduiWidget.color.value})');
+        if (sduiWidget.textAlign != null) buffer.write(', textAlign: TextAlign.${sduiWidget.textAlign.toString().split('.').last}');
+        buffer.write(')');
+        break;
+      case 'SduiImage':
+        buffer.write('SduiImage(');
+        buffer.write("'${sduiWidget.src}'");
+        if (sduiWidget.width != null) buffer.write(', width: ${sduiWidget.width}');
+        if (sduiWidget.height != null) buffer.write(', height: ${sduiWidget.height}');
+        if (sduiWidget.fit != null) buffer.write(', fit: BoxFit.${sduiWidget.fit.toString().split('.').last}');
+        buffer.write(')');
+        break;
+      case 'SduiIcon':
+        buffer.write('SduiIcon(');
+        if (sduiWidget.icon != null) buffer.write('icon: ${sduiWidget.icon},');
+        if (sduiWidget.size != null) buffer.write('size: ${sduiWidget.size},');
+        if (sduiWidget.color != null) buffer.write('color: Color(${sduiWidget.color.value}),');
+        buffer.write(')');
+        break;
+      case 'SduiSpacer':
+        buffer.write('SduiSpacer(');
+        if (sduiWidget.flex != null) buffer.write('flex: ${sduiWidget.flex},');
+        buffer.write(')');
+        break;
+      case 'SduiSizedBox':
+        buffer.write('SduiSizedBox(');
+        if (sduiWidget.width != null) buffer.write('width: ${sduiWidget.width},');
+        if (sduiWidget.height != null) buffer.write('height: ${sduiWidget.height},');
+        if (sduiWidget.child != null) buffer.write('child: ${_generateSduiWidgetCode(sduiWidget.child, indent + 1)},');
+        buffer.write(')');
+        break;
+      default:
+        buffer.write('Container()');
+    }
     return buffer.toString();
   }
 
@@ -161,5 +266,14 @@ class CodeGeneratorService {
     }
     
     return buffer.toString();
+  }
+
+  static String _prettyPrintJson(dynamic json) {
+    // Pretty-print JSON for code view
+    try {
+      return const JsonEncoder.withIndent('  ').convert(json);
+    } catch (_) {
+      return json.toString();
+    }
   }
 } 

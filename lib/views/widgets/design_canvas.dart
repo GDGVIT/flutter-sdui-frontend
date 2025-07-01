@@ -3,6 +3,10 @@ import '../../models/widget_node.dart';
 import '../../models/widget_data.dart';
 import '../../models/app_theme.dart';
 import 'dart:collection';
+import 'widget_node_dnd.dart';
+import 'node_container.dart';
+import 'palette_drag_feedback.dart';
+import 'canvas_utils.dart';
 
 class DesignCanvas extends StatefulWidget {
   final WidgetNode widgetRoot;
@@ -143,10 +147,123 @@ class DesignCanvasState extends State<DesignCanvas> {
     }
   }
 
+  Widget _canvasDragFeedback(WidgetNode node, Size visualSize) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: visualSize.width,
+        height: visualSize.height,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.7),
+          border: Border.all(color: Colors.blueAccent, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(node.icon, color: Colors.blueAccent, size: 32),
+              const SizedBox(height: 4),
+              Text(node.label, style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Resize handle callbacks generator ---
+  Map<String, dynamic> getResizeCallbacks(WidgetNode node, Size visualSize, int dx, int dy) {
+    return {
+      'onPanStart': (DragStartDetails details) {
+        setState(() {
+          _resizingWidgetId = node.uid;
+          _resizeStartPointer = details.globalPosition;
+          _resizeStartSize = visualSize;
+          _resizeStartPosition = node.position;
+          _resizeDx = dx;
+          _resizeDy = dy;
+        });
+      },
+      'onPanUpdate': (DragUpdateDetails details) {
+        if (_resizingWidgetId == node.uid && _resizeStartPointer != null && _resizeStartSize != null && _resizeStartPosition != null && _resizeDx != null && _resizeDy != null) {
+          double scale = _canvasScale;
+          Offset pointer = details.globalPosition;
+          Offset delta = (pointer - _resizeStartPointer!) * (1 / scale);
+          double newWidth = _resizeStartSize!.width + delta.dx * _resizeDx!;
+          double newHeight = _resizeStartSize!.height + delta.dy * _resizeDy!;
+          double minWidth = 32;
+          double minHeight = 32;
+          newWidth = newWidth.clamp(minWidth, 2000);
+          newHeight = newHeight.clamp(minHeight, 2000);
+          Offset newPosition = _resizeStartPosition!;
+          if (_resizeDx == -1) newPosition = newPosition.translate(delta.dx, 0);
+          if (_resizeDy == -1) newPosition = newPosition.translate(0, delta.dy);
+          widget.onWidgetResized(
+            node.uid,
+            Size(newWidth, newHeight),
+          );
+          // Optionally, update position for top/left handles
+          if (_resizeDx == -1 || _resizeDy == -1) {
+            widget.onWidgetSelected(node.uid); // keep selected
+            widget.onWidgetMoved(
+              node.uid,
+              newPosition,
+            );
+          }
+        }
+      },
+      'onPanEnd': (DragEndDetails _) {
+        setState(() {
+          _resizingWidgetId = null;
+          _resizeStartPointer = null;
+          _resizeStartSize = null;
+          _resizeStartPosition = null;
+          _resizeDx = null;
+          _resizeDy = null;
+        });
+      },
+    };
+  }
+
+  Widget widgetNodeDndWrapper(WidgetNode node, int depth, {bool insideStack = false}) {
+    return buildWidgetNodeWithDnD(
+      node: node,
+      depth: depth,
+      insideStack: insideStack,
+      selectedWidgetId: widget.selectedWidgetId,
+      hoveredWidgetId: _hoveredWidgetId,
+      dropTargetKeys: _dropTargetKeys,
+      isDraggingFromPalette: _isDraggingFromPalette,
+      paletteDropTargetId: _paletteDropTargetId,
+      deepestDropTargetId: _deepestDropTargetId,
+      onWidgetSelected: widget.onWidgetSelected,
+      onWidgetReparent: widget.onWidgetReparent,
+      setState: setState,
+      buildWidgetNodeWithDnD: widgetNodeDndWrapper,
+      buildNodeContainer: buildNodeContainer,
+      getResizeHandle: (node, visualSize, dx, dy) {
+        final cbs = getResizeCallbacks(node, visualSize, dx, dy);
+        return buildResizeHandle(
+          node: node,
+          visualSize: visualSize,
+          dx: dx,
+          dy: dy,
+          onPanStart: cbs['onPanStart'],
+          onPanUpdate: cbs['onPanUpdate'],
+          onPanEnd: cbs['onPanEnd'],
+        );
+      },
+      dragFeedback: (node, visualSize) => _isDraggingFromPalette && _draggedWidgetData != null
+        ? buildPaletteDragFeedback(_draggedWidgetData!)
+        : _canvasDragFeedback(node, visualSize),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // --- Auto-enlarge: compute bounding box of all widgets ---
-    Size canvasSize = _computeCanvasSize(widget.widgetRoot);
+    Size canvasSize = computeCanvasSize(widget.widgetRoot);
     const Size minCanvasSize = Size(1200, 900);
     final double canvasWidth = canvasSize.width < minCanvasSize.width ? minCanvasSize.width : canvasSize.width;
     final double canvasHeight = canvasSize.height < minCanvasSize.height ? minCanvasSize.height : canvasSize.height;
@@ -243,7 +360,7 @@ class DesignCanvasState extends State<DesignCanvas> {
                                   offset: _canvasOffset,
                                   child: Stack(
                                     children: [
-                                      _buildWidgetNodeWithDnD(widget.widgetRoot, 0),
+                                      widgetNodeDndWrapper(widget.widgetRoot, 0, insideStack: false),
                                     ],
                                   ),
                                 ),
@@ -258,7 +375,7 @@ class DesignCanvasState extends State<DesignCanvas> {
                               child: IgnorePointer(
                                 child: Opacity(
                                   opacity: 0.85,
-                                  child: _buildPaletteDragFeedback(_draggedWidgetData!),
+                                  child: buildPaletteDragFeedback(_draggedWidgetData!),
                                 ),
                               ),
                             ),
@@ -293,421 +410,5 @@ class DesignCanvasState extends State<DesignCanvas> {
         // ),
       ],
     );
-  }
-
-  Widget _buildWidgetNodeWithDnD(WidgetNode node, int depth, {bool insideStack = false}) {
-    final isSelected = widget.selectedWidgetId == node.uid;
-    final isHovered = _hoveredWidgetId == node.uid;
-    final isScaffold = node.type == 'Scaffold' || node.type == 'SduiScaffold';
-    final visualSize = node.size;
-    final visualPosition = node.position;
-    final canAcceptChildren = _canAcceptChildren(node.type);
-
-    // Advanced: Assign a GlobalKey for each drop target
-    GlobalKey dropKey = _dropTargetKeys[node.uid] ??= GlobalKey();
-
-    Widget childContent;
-    // Multi-child parent: render all children regardless of type
-    if (node.type == 'Row Widget' || node.type == 'SduiRow' || node.type == 'Column Widget' || node.type == 'SduiColumn') {
-      print('Rendering children for node ${node.uid} (${node.type}):');
-      for (var child in node.children) {
-        print('  - ${child.uid} (${child.type})');
-      }
-      if (node.type == 'Row Widget' || node.type == 'SduiRow') {
-        childContent = Container(
-          width: node.size.width,
-          height: node.size.height,
-          child: Row(
-            children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
-          ),
-        );
-      } else {
-        childContent = Container(
-          width: node.size.width,
-          height: node.size.height,
-          child: Column(
-            children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
-          ),
-        );
-      }
-    } else if (node.type == 'Stack Widget' || node.type == 'SduiStack') {
-      childContent = Stack(
-        children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList(),
-      );
-    } else if (node.type == 'SduiContainer') {
-      childContent = node.children.isNotEmpty
-        ? _buildWidgetNodeWithDnD(node.children.first, depth + 1, insideStack: false)
-        : const SizedBox.shrink();
-    } else if (node.type == 'Scaffold' || node.type == 'SduiScaffold') {
-      final appBarTitle = node.properties['appBarTitle']?.toString() ?? '';
-      final appBarColor = _parseColor(node.properties['appBarColor']?.toString() ?? '#FF232323');
-      childContent = Column(
-        children: [
-          GestureDetector(
-            onTap: () => widget.onWidgetSelected(node.uid),
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredWidgetId = node.uid),
-              onExit: (_) => setState(() => _hoveredWidgetId = null),
-              child: Material(
-                elevation: 2,
-                color: appBarColor,
-                child: Container(
-                  height: 56,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: (widget.selectedWidgetId == node.uid || _hoveredWidgetId == node.uid)
-                            ? const Color(0xFF4CAF50)
-                            : Colors.transparent,
-                        width: 3,
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    appBarTitle.isNotEmpty ? appBarTitle : 'App Bar',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: node.children.isNotEmpty
-                ? Stack(children: node.children.map((child) => _buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList())
-                : const SizedBox.shrink(),
-          ),
-        ],
-      );
-    } else {
-      childContent = Center(
-        child: Text(
-          node.label,
-          style: const TextStyle(color: Color(0xFFEDF1EE)),
-        ),
-      );
-    }
-
-    Widget nodeContainer = _buildNodeContainer(node, childContent, visualSize, isSelected, isHovered, isScaffold);
-    if (canAcceptChildren) {
-      final baseNodeContainer = nodeContainer;
-      nodeContainer = DragTarget<WidgetData>(
-        key: dropKey,
-        onWillAccept: (data) => false, // disable built-in DragTarget for palette
-        onAccept: (data) {},
-        builder: (context, candidateData, rejectedData) {
-          return Stack(
-            children: [
-              baseNodeContainer,
-              if ((_isDraggingFromPalette && _paletteDropTargetId == node.uid) || (!_isDraggingFromPalette && _deepestDropTargetId == node.uid && candidateData.isNotEmpty))
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.13),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green, width: 2),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'Drop to add here',
-                        style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      );
-    }
-
-    Widget dragTarget = DragTarget<WidgetNode>(
-      onWillAccept: (dragged) {
-        final result = (dragged != null && dragged.uid != node.uid && !_isDescendant(dragged, node) && canAcceptChildren);
-        print('onWillAccept: dragged=${dragged?.type} (${dragged?.uid}), target=${node.type} (${node.uid}), result=$result');
-        return result;
-      },
-      onAccept: (dragged) {
-        print('onAccept: dragged=${dragged.type} (${dragged.uid}) into target=${node.type} (${node.uid})');
-        setState(() {
-          _moveWidgetNode(dragged, node);
-        });
-      },
-      builder: (context, candidateData, rejectedData) {
-        // Always wrap in Draggable<WidgetNode> for all node types
-        return Draggable<WidgetNode>(
-          data: node,
-          feedback: Opacity(
-            opacity: 0.7,
-            child: _dragFeedback(node, visualSize),
-          ),
-          childWhenDragging: Opacity(
-            opacity: 0.3,
-            child: nodeContainer,
-          ),
-          child: nodeContainer,
-        );
-      },
-    );
-
-    if (insideStack) {
-      return Positioned(
-        left: visualPosition.dx,
-        top: visualPosition.dy,
-        child: dragTarget,
-      );
-    } else {
-      return dragTarget;
-    }
-  }
-
-  Widget _buildNodeContainer(WidgetNode node, Widget childContent, Size visualSize, bool isSelected, bool isHovered, bool isScaffold) {
-    Widget container = GestureDetector(
-      onTap: () => widget.onWidgetSelected(node.uid),
-      child: Container(
-        width: visualSize.width,
-        height: visualSize.height,
-        decoration: BoxDecoration(
-          color: isScaffold
-              ? _parseColor(node.properties['backgroundColor']?.toString() ?? '#FF2F2F2F')
-              : node.type == 'Container Widget'
-                  ? _parseColor(node.properties['color']?.toString() ?? '#FF3F3F3F')
-                  : const Color(0xFF3F3F3F),
-          border: Border.all(
-            color: isScaffold
-                ? const Color(0xFF4CAF50)
-                : isSelected || isHovered
-                    ? const Color(0xFF4CAF50)
-                    : _parseColor(node.properties['borderColor']?.toString() ?? '#FFE0E0E0'),
-            width: isScaffold ? 2 : (node.properties['borderWidth'] as double? ?? 1),
-          ),
-          borderRadius: BorderRadius.circular(
-            node.type == 'Container Widget'
-                ? (node.properties['borderRadius'] as double? ?? 8.0)
-                : isScaffold ? 8 : 4,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: 28,
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF4CAF50).withOpacity(0.15) : const Color(0xFF232323),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                border: Border(
-                  bottom: BorderSide(color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF444444), width: 1),
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                children: [
-                  Icon(node.icon, size: 16, color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFEDF1EE)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      node.label,
-                      style: TextStyle(
-                        color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFEDF1EE),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(child: childContent),
-          ],
-        ),
-      ),
-    );
-
-    // Add resize handles if selected
-    if (isSelected) {
-      container = Stack(
-        children: [
-          container,
-          // Top-left handle
-          Positioned(
-            left: -8,
-            top: -8,
-            child: _buildResizeHandle(node, visualSize, dx: -1, dy: -1),
-          ),
-          // Top-right handle
-          Positioned(
-            right: -8,
-            top: -8,
-            child: _buildResizeHandle(node, visualSize, dx: 1, dy: -1),
-          ),
-          // Bottom-left handle
-          Positioned(
-            left: -8,
-            bottom: -8,
-            child: _buildResizeHandle(node, visualSize, dx: -1, dy: 1),
-          ),
-          // Bottom-right handle
-          Positioned(
-            right: -8,
-            bottom: -8,
-            child: _buildResizeHandle(node, visualSize, dx: 1, dy: 1),
-          ),
-        ],
-      );
-    }
-    return container;
-  }
-
-  Widget _buildResizeHandle(WidgetNode node, Size visualSize, {required int dx, required int dy}) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onPanStart: (details) {
-        setState(() {
-          _resizingWidgetId = node.uid;
-          _resizeStartPointer = details.globalPosition;
-          _resizeStartSize = visualSize;
-          _resizeStartPosition = node.position;
-          _resizeDx = dx;
-          _resizeDy = dy;
-        });
-      },
-      onPanUpdate: (details) {
-        if (_resizingWidgetId == node.uid && _resizeStartPointer != null && _resizeStartSize != null && _resizeStartPosition != null && _resizeDx != null && _resizeDy != null) {
-          double scale = _canvasScale;
-          Offset pointer = details.globalPosition;
-          Offset delta = (pointer - _resizeStartPointer!) * (1 / scale);
-          double newWidth = _resizeStartSize!.width + delta.dx * _resizeDx!;
-          double newHeight = _resizeStartSize!.height + delta.dy * _resizeDy!;
-          double minWidth = 32;
-          double minHeight = 32;
-          newWidth = newWidth.clamp(minWidth, 2000);
-          newHeight = newHeight.clamp(minHeight, 2000);
-          Offset newPosition = _resizeStartPosition!;
-          if (_resizeDx == -1) newPosition = newPosition.translate(delta.dx, 0);
-          if (_resizeDy == -1) newPosition = newPosition.translate(0, delta.dy);
-          widget.onWidgetResized(
-            node.uid,
-            Size(newWidth, newHeight),
-          );
-          // Optionally, update position for top/left handles
-          if (_resizeDx == -1 || _resizeDy == -1) {
-            widget.onWidgetSelected(node.uid); // keep selected
-            widget.onWidgetMoved(
-              node.uid,
-              newPosition,
-            );
-          }
-        }
-      },
-      onPanEnd: (_) {
-        setState(() {
-          _resizingWidgetId = null;
-          _resizeStartPointer = null;
-          _resizeStartSize = null;
-          _resizeStartPosition = null;
-          _resizeDx = null;
-          _resizeDy = null;
-        });
-      },
-      child: Container(
-        width: 16,
-        height: 16,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.green, width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-
-  Widget _dragFeedback(WidgetNode node, Size visualSize) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: visualSize.width,
-        height: visualSize.height,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.7),
-          border: Border.all(color: Colors.blueAccent, width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Icon(node.icon, color: Colors.blueAccent, size: 32),
-        ),
-      ),
-    );
-  }
-
-  bool _canAcceptChildren(String type) {
-    return type == 'Row Widget' ||
-           type == 'Column Widget' ||
-           type == 'Stack Widget' ||
-           type == 'Scaffold' ||
-           type == 'SduiColumn' ||
-           type == 'SduiRow' ||
-           type == 'SduiScaffold' ||
-           type == 'SduiContainer';
-  }
-
-  bool _isDescendant(WidgetNode parent, WidgetNode possibleDescendant) {
-    if (parent == possibleDescendant) return true;
-    for (final child in parent.children) {
-      if (_isDescendant(child, possibleDescendant)) return true;
-    }
-    return false;
-  }
-
-  void _moveWidgetNode(WidgetNode dragged, WidgetNode newParent) {
-    print('_moveWidgetNode: dragged=${dragged.type} (${dragged.uid}), newParent=${newParent.type} (${newParent.uid})');
-    widget.onWidgetReparent(dragged.uid, newParent.uid);
-  }
-
-  Color _parseColor(String colorString) {
-    try {
-      return Color(int.parse(colorString.replaceFirst('#', '0x')));
-    } catch (e) {
-      return const Color(0xFF3F3F3F);
-    }
-  }
-
-  Widget _buildPaletteDragFeedback(WidgetData data) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0).withOpacity(0.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
-        ),
-        child: Icon(data.icon, color: const Color(0xFF212121), size: 32),
-      ),
-    );
-  }
-
-  // Recursively compute the bounding box of all widgets
-  Size _computeCanvasSize(WidgetNode node) {
-    double maxX = node.position.dx + node.size.width;
-    double maxY = node.position.dy + node.size.height;
-    for (final child in node.children) {
-      final childSize = _computeCanvasSize(child);
-      if (child.position.dx + child.size.width > maxX) {
-        maxX = child.position.dx + child.size.width;
-      }
-      if (child.position.dy + child.size.height > maxY) {
-        maxY = child.position.dy + child.size.height;
-      }
-      if (childSize.width > maxX) maxX = childSize.width;
-      if (childSize.height > maxY) maxY = childSize.height;
-    }
-    return Size(maxX, maxY);
   }
 } 
