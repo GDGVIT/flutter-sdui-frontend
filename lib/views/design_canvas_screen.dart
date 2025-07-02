@@ -29,6 +29,14 @@ class _DesignCanvasScreenContent extends StatefulWidget {
 
 class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> {
   final GlobalKey<DesignCanvasState> _canvasKey = GlobalKey<DesignCanvasState>();
+  double leftWidth = 275;
+  double rightWidth = 300;
+  final double minPaneWidth = 140;
+  bool resizingLeft = false;
+  bool resizingRight = false;
+  Offset? dragStart;
+  double? dragStartLeftWidth;
+  double? dragStartRightWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -51,10 +59,9 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                   onPaneSelected: viewModel.setSelectedPane,
                 ),
               ),
-              // Wider Left Panel
-              Container(
-                width: 275,
-                color: const Color(0xFF2F2F2F),
+              // Resizable Left Panel
+              SizedBox(
+                width: leftWidth,
                 child: LeftSidebar(
                   selectedPane: viewModel.selectedPane,
                   scaffoldWidget: viewModel.widgetRoot,
@@ -66,6 +73,40 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                   onPaletteDragStart: (data, pos) => _canvasKey.currentState?.startPaletteDrag(data, pos),
                   onPaletteDragUpdate: (pos) => _canvasKey.currentState?.updatePaletteDrag(pos),
                   onPaletteDragEnd: () => _canvasKey.currentState?.endPaletteDrag(),
+                ),
+              ),
+              // Left Divider
+              MouseRegion(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (details) {
+                    setState(() {
+                      resizingLeft = true;
+                      dragStart = details.globalPosition;
+                      dragStartLeftWidth = leftWidth;
+                    });
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    if (resizingLeft && dragStart != null && dragStartLeftWidth != null) {
+                      setState(() {
+                        leftWidth = (dragStartLeftWidth! + (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, 400);
+                      });
+                    }
+                  },
+                  onHorizontalDragEnd: (_) {
+                    setState(() {
+                      resizingLeft = false;
+                      dragStart = null;
+                      dragStartLeftWidth = null;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    width: 4,
+                    color: resizingLeft ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
+                    child: const SizedBox.expand(),
+                  ),
                 ),
               ),
               // Main Canvas Area
@@ -127,10 +168,43 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                   ],
                 ),
               ),
+              // Right Divider
+              MouseRegion(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (details) {
+                    setState(() {
+                      resizingRight = true;
+                      dragStart = details.globalPosition;
+                      dragStartRightWidth = rightWidth;
+                    });
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    if (resizingRight && dragStart != null && dragStartRightWidth != null) {
+                      setState(() {
+                        rightWidth = (dragStartRightWidth! - (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, 400);
+                      });
+                    }
+                  },
+                  onHorizontalDragEnd: (_) {
+                    setState(() {
+                      resizingRight = false;
+                      dragStart = null;
+                      dragStartRightWidth = null;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    width: 4,
+                    color: resizingRight ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
               // Right Properties Panel
-              Container(
-                width: 300,
-                color: const Color(0xFF2F2F2F),
+              SizedBox(
+                width: rightWidth,
                 child: PropertiesPanel(
                   selectedWidget: viewModel.getSelectedWidget(),
                   appTheme: viewModel.appTheme,
