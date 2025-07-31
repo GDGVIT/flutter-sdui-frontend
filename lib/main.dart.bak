@@ -1,0 +1,3043 @@
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Dashboard App',
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF212121),
+        primaryColor: const Color(0xFF2F2F2F),
+      ),
+      home: const DashboardScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String selectedPane = 'build';
+  late WidgetNode scaffoldWidget;
+  String? selectedWidgetId;
+  bool showPreview = false;
+  AppTheme appTheme = AppTheme.defaultTheme();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with Scaffold as root widget
+    scaffoldWidget = WidgetNode(
+      id: 'scaffold_root',
+      type: 'Scaffold',
+      label: 'Scaffold',
+      icon: Icons.web_asset,
+      position: const Offset(50, 50),
+      size: const Size(400, 600),
+      children: [],
+      properties: WidgetProperties.getDefaultProperties('Scaffold'),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Row(
+        children: [
+          // Narrow Icon Bar
+          Container(
+            width: 90,
+            decoration: const BoxDecoration(
+              color: Color(0xFF2F2F2F),
+              border: Border(
+                right: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+              ),
+            ),
+            child: IconBar(
+              selectedPane: selectedPane,
+              onPaneSelected: (pane) {
+                setState(() {
+                  selectedPane = pane;
+                });
+              },
+            ),
+          ),
+          // Wider Left Panel
+          Container(
+            width: 275,
+            color: const Color(0xFF2F2F2F),
+            child: LeftSidebar(
+              selectedPane: selectedPane,
+              scaffoldWidget: scaffoldWidget,
+              appTheme: appTheme,
+              onThemeChanged: (theme) {
+                setState(() {
+                  appTheme = theme;
+                });
+              },
+              onWidgetDropped: (widgetData) {
+                // This shouldn't be called anymore since we only drop on canvas
+              },
+            ),
+          ),
+          // Main Canvas Area
+          Expanded(
+            child: Column(
+              children: [
+                // View Toggle Header
+                Container(
+                  height: 50,
+                  color: const Color(0xFF2F2F2F),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      const Text(
+                        'View:',
+                        style: TextStyle(
+                          color: Color(0xFFEDF1EE),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      _buildViewToggle('Design', !showPreview),
+                      const SizedBox(width: 8),
+                      _buildViewToggle('Preview', showPreview),
+                      const Spacer(),
+                      if (showPreview)
+                        TextButton.icon(
+                          onPressed: () {
+                            _showCodeDialog();
+                          },
+                          icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 16),
+                          label: const Text(
+                            'View Code',
+                            style: TextStyle(color: Color(0xFF4CAF50)),
+                          ),
+                        ),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
+                ),
+                // Canvas Content
+                Expanded(
+                  child: showPreview
+                      ? PreviewCanvas(
+                          scaffoldWidget: scaffoldWidget,
+                          appTheme: appTheme,
+                        )
+                      : DesignCanvas(
+                          scaffoldWidget: scaffoldWidget,
+                          selectedWidgetId: selectedWidgetId,
+                          appTheme: appTheme,
+                          onWidgetSelected: (id) {
+                            setState(() {
+                              selectedWidgetId = id;
+                            });
+                          },
+                          onWidgetAdded: (parentId, widgetData) {
+                            _addWidgetToParent(parentId, widgetData);
+                          },
+                          onWidgetMoved: (id, newPosition) {
+                            setState(() {
+                              _moveWidget(id, newPosition);
+                            });
+                          },
+                          onWidgetResized: (id, newSize) {
+                            setState(() {
+                              _resizeWidget(id, newSize);
+                            });
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+          // Right Properties Panel
+          Container(
+            width: 300,
+            color: const Color(0xFF2F2F2F),
+            child: PropertiesPanel(
+              selectedWidget: _findWidgetById(selectedWidgetId),
+              appTheme: appTheme,
+              onPropertyChanged: (widgetId, propertyName, value) {
+                setState(() {
+                  _updateWidgetProperty(widgetId, propertyName, value);
+                });
+              },
+              onWidgetRemoved: (widgetId) {
+                setState(() {
+                  _removeWidget(widgetId);
+                  selectedWidgetId = null;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewToggle(String label, bool isSelected) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          showPreview = label == 'Preview';
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF4CAF50) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF666666),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFFEDF1EE),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCodeDialog() {
+    final code = FlutterCodeGenerator.generateCode(scaffoldWidget, appTheme);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2F2F2F),
+        title: const Text(
+          'Generated Flutter Code',
+          style: TextStyle(color: Color(0xFFEDF1EE)),
+        ),
+        content: Container(
+          width: 600,
+          height: 400,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              code,
+              style: const TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: Color(0xFF4CAF50)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addWidgetToParent(String parentId, WidgetData widgetData) async {
+    final parent = _findWidgetById(parentId);
+    if (parent != null) {
+      final parentConstraints = WidgetConstraints.getConstraints(parent.type);
+      
+      // Check if parent can accept children
+      if (parentConstraints.maxChildren == 0) {
+        return;
+      }
+      
+      // Check if we need to show replacement dialog
+      if (parentConstraints.maxChildren == 1 && parent.children.isNotEmpty) {
+        final shouldReplace = await _showReplaceChildDialog(parent.label);
+        if (!shouldReplace) return;
+        
+        setState(() {
+          parent.children.clear();
+        });
+      } else if (parent.children.length >= parentConstraints.maxChildren && parentConstraints.maxChildren != -1) {
+        return;
+      }
+      
+      setState(() {
+        parent.children.add(WidgetNode(
+          id: 'widget_${DateTime.now().millisecondsSinceEpoch}',
+          type: widgetData.type,
+          label: widgetData.label,
+          icon: widgetData.icon,
+          position: const Offset(10, 10),
+          size: _getDefaultSize(widgetData.type),
+          children: [],
+          properties: WidgetProperties.getDefaultProperties(widgetData.type),
+        ));
+      });
+    }
+  }
+
+  Future<bool> _showReplaceChildDialog(String parentLabel) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2F2F2F),
+          title: const Text(
+            'Replace Child Widget?',
+            style: TextStyle(color: Color(0xFFEDF1EE)),
+          ),
+          content: Text(
+            '$parentLabel already has a child widget. Do you want to replace it?',
+            style: const TextStyle(color: Color(0xFFEDF1EE)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFFE0E0E0)),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Replace',
+                style: TextStyle(color: Color(0xFF4CAF50)),
+              ),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  void _updateWidgetProperty(String widgetId, String propertyName, dynamic value) {
+    final widget = _findWidgetById(widgetId);
+    if (widget != null) {
+      widget.properties[propertyName] = value;
+    }
+  }
+
+  void _removeWidget(String widgetId) {
+    if (widgetId == scaffoldWidget.id) return; // Can't remove scaffold
+    
+    bool removeFromNode(WidgetNode node) {
+      for (int i = 0; i < node.children.length; i++) {
+        if (node.children[i].id == widgetId) {
+          node.children.removeAt(i);
+          return true;
+        }
+        if (removeFromNode(node.children[i])) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    removeFromNode(scaffoldWidget);
+  }
+
+  Size _getDefaultSize(String widgetType) {
+    switch (widgetType) {
+      case 'Column Widget':
+        return const Size(200, 300);
+      case 'Row Widget':
+        return const Size(300, 100);
+      case 'Container Widget':
+        return const Size(150, 150);
+      case 'Stack Widget':
+        return const Size(200, 200);
+      case 'Text Widget':
+        return const Size(120, 40);
+      case 'TextField Widget':
+        return const Size(200, 50);
+      case 'Image Widget':
+        return const Size(120, 120);
+      default:
+        return const Size(100, 60);
+    }
+  }
+
+  void _moveWidget(String id, Offset newPosition) {
+    final widget = _findWidgetById(id);
+    if (widget != null) {
+      widget.position = newPosition;
+    }
+  }
+
+  void _resizeWidget(String id, Size newSize) {
+    final widget = _findWidgetById(id);
+    if (widget != null) {
+      widget.size = newSize;
+      // Update width and height properties if they exist
+      if (widget.properties.containsKey('width')) {
+        widget.properties['width'] = newSize.width;
+      }
+      if (widget.properties.containsKey('height')) {
+        widget.properties['height'] = newSize.height;
+      }
+    }
+  }
+
+  WidgetNode? _findWidgetById(String? id) {
+    if (id == null) return null;
+    
+    WidgetNode? findInWidget(WidgetNode widget) {
+      if (widget.id == id) return widget;
+      for (final child in widget.children) {
+        final found = findInWidget(child);
+        if (found != null) return found;
+      }
+      return null;
+    }
+    
+    return findInWidget(scaffoldWidget);
+  }
+}
+
+class ColorPickerDialog extends StatefulWidget {
+  final Color initialColor;
+  final Function(Color) onColorChanged;
+
+  const ColorPickerDialog({
+    super.key,
+    required this.initialColor,
+    required this.onColorChanged,
+  });
+
+  @override
+  State<ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<ColorPickerDialog> {
+  late Color selectedColor;
+  late TextEditingController hexController;
+
+  final List<Color> presetColors = [
+    Colors.red,
+    Colors.pink,
+    Colors.purple,
+    Colors.deepPurple,
+    Colors.indigo,
+    Colors.blue,
+    Colors.lightBlue,
+    Colors.cyan,
+    Colors.teal,
+    Colors.green,
+    Colors.lightGreen,
+    Colors.lime,
+    Colors.yellow,
+    Colors.amber,
+    Colors.orange,
+    Colors.deepOrange,
+    Colors.brown,
+    Colors.grey,
+    Colors.blueGrey,
+    Colors.black,
+    Colors.white,
+    const Color(0xFF2F2F2F),
+    const Color(0xFF3F3F3F),
+    const Color(0xFF4CAF50),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    selectedColor = widget.initialColor;
+    hexController = TextEditingController(
+      text: selectedColor.value.toRadixString(16).padLeft(8, '0').toUpperCase(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF2F2F2F),
+      title: const Text(
+        'Pick a Color',
+        style: TextStyle(color: Color(0xFFEDF1EE)),
+      ),
+      content: Container(
+        width: 300,
+        height: 400,
+        child: Column(
+          children: [
+            // Current color preview
+            Container(
+              width: double.infinity,
+              height: 60,
+              decoration: BoxDecoration(
+                color: selectedColor,
+                border: Border.all(color: const Color(0xFF666666)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Hex input
+            TextField(
+              controller: hexController,
+              style: const TextStyle(color: Color(0xFFEDF1EE)),
+              decoration: InputDecoration(
+                labelText: 'Hex Color',
+                labelStyle: const TextStyle(color: Color(0xFFEDF1EE)),
+                prefixText: '#',
+                prefixStyle: const TextStyle(color: Color(0xFFEDF1EE)),
+                filled: true,
+                fillColor: const Color(0xFF3F3F3F),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: Color(0xFF666666)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: Color(0xFF666666)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+                ),
+              ),
+              onChanged: (value) {
+                try {
+                  final color = Color(int.parse('0x$value'));
+                  setState(() {
+                    selectedColor = color;
+                  });
+                } catch (e) {
+                  // Invalid hex color
+                }
+              },
+            ),
+            const SizedBox(height: 16),
+            
+            // Preset colors
+            const Text(
+              'Preset Colors',
+              style: TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: presetColors.length,
+                itemBuilder: (context, index) {
+                  final color = presetColors[index];
+                  final isSelected = color.value == selectedColor.value;
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        selectedColor = color;
+                        hexController.text = color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+                      });
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF666666),
+                          width: isSelected ? 3 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: Color(0xFFE0E0E0)),
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            widget.onColorChanged(selectedColor);
+            Navigator.of(context).pop();
+          },
+          child: const Text(
+            'Apply',
+            style: TextStyle(color: Color(0xFF4CAF50)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AppTheme {
+  final Color primaryColor;
+  final Color secondaryColor;
+  final Color backgroundColor;
+  final Color surfaceColor;
+  final Color textColor;
+  final Color accentColor;
+  final double borderRadius;
+  final double defaultPadding;
+  final String fontFamily;
+
+  AppTheme({
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.backgroundColor,
+    required this.surfaceColor,
+    required this.textColor,
+    required this.accentColor,
+    required this.borderRadius,
+    required this.defaultPadding,
+    required this.fontFamily,
+  });
+
+  static AppTheme defaultTheme() {
+    return AppTheme(
+      primaryColor: const Color(0xFF4CAF50),
+      secondaryColor: const Color(0xFF2196F3),
+      backgroundColor: const Color(0xFF2F2F2F),
+      surfaceColor: const Color(0xFF3F3F3F),
+      textColor: const Color(0xFFEDF1EE),
+      accentColor: const Color(0xFF9C27B0),
+      borderRadius: 8.0,
+      defaultPadding: 16.0,
+      fontFamily: 'Roboto',
+    );
+  }
+
+  AppTheme copyWith({
+    Color? primaryColor,
+    Color? secondaryColor,
+    Color? backgroundColor,
+    Color? surfaceColor,
+    Color? textColor,
+    Color? accentColor,
+    double? borderRadius,
+    double? defaultPadding,
+    String? fontFamily,
+  }) {
+    return AppTheme(
+      primaryColor: primaryColor ?? this.primaryColor,
+      secondaryColor: secondaryColor ?? this.secondaryColor,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      surfaceColor: surfaceColor ?? this.surfaceColor,
+      textColor: textColor ?? this.textColor,
+      accentColor: accentColor ?? this.accentColor,
+      borderRadius: borderRadius ?? this.borderRadius,
+      defaultPadding: defaultPadding ?? this.defaultPadding,
+      fontFamily: fontFamily ?? this.fontFamily,
+    );
+  }
+}
+
+class FlutterCodeGenerator {
+  static String generateCode(WidgetNode scaffoldWidget, AppTheme theme) {
+    final buffer = StringBuffer();
+    
+    buffer.writeln('import \'package:flutter/material.dart\';');
+    buffer.writeln('');
+    buffer.writeln('class GeneratedWidget extends StatelessWidget {');
+    buffer.writeln('  const GeneratedWidget({super.key});');
+    buffer.writeln('');
+    buffer.writeln('  @override');
+    buffer.writeln('  Widget build(BuildContext context) {');
+    buffer.writeln('    return ${_generateWidgetCode(scaffoldWidget, 2, theme)};');
+    buffer.writeln('  }');
+    buffer.writeln('}');
+    
+    return buffer.toString();
+  }
+
+  static String _generateWidgetCode(WidgetNode node, int indent, AppTheme theme) {
+    final indentStr = '  ' * indent;
+    final buffer = StringBuffer();
+    
+    switch (node.type) {
+      case 'Scaffold':
+        buffer.write('Scaffold(');
+        if (node.properties['backgroundColor'] != null) {
+          final color = node.properties['backgroundColor'].toString();
+          buffer.write('\n${indentStr}  backgroundColor: Color(${color.replaceFirst('#', '0x')}),');
+        }
+        if (node.children.isNotEmpty) {
+          buffer.write('\n${indentStr}  body: ${_generateWidgetCode(node.children.first, indent + 1, theme)},');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      case 'Container Widget':
+        buffer.write('Container(');
+        if (node.properties['width'] != null) {
+          buffer.write('\n${indentStr}  width: ${node.properties['width']},');
+        }
+        if (node.properties['height'] != null) {
+          buffer.write('\n${indentStr}  height: ${node.properties['height']},');
+        }
+        if (node.properties['padding'] != null && node.properties['padding'] > 0) {
+          buffer.write('\n${indentStr}  padding: EdgeInsets.all(${node.properties['padding']}),');
+        }
+        if (node.properties['margin'] != null && node.properties['margin'] > 0) {
+          buffer.write('\n${indentStr}  margin: EdgeInsets.all(${node.properties['margin']}),');
+        }
+        
+        // Decoration
+        final hasDecoration = node.properties['color'] != null || 
+                            node.properties['borderRadius'] != null ||
+                            node.properties['borderWidth'] != null;
+        if (hasDecoration) {
+          buffer.write('\n${indentStr}  decoration: BoxDecoration(');
+          if (node.properties['color'] != null) {
+            final color = node.properties['color'].toString();
+            buffer.write('\n${indentStr}    color: Color(${color.replaceFirst('#', '0x')}),');
+          }
+          if (node.properties['borderRadius'] != null) {
+            buffer.write('\n${indentStr}    borderRadius: BorderRadius.circular(${node.properties['borderRadius']}),');
+          }
+          if (node.properties['borderWidth'] != null && node.properties['borderWidth'] > 0) {
+            final borderColor = node.properties['borderColor']?.toString() ?? '#FF666666';
+            buffer.write('\n${indentStr}    border: Border.all(');
+            buffer.write('\n${indentStr}      color: Color(${borderColor.replaceFirst('#', '0x')}),');
+            buffer.write('\n${indentStr}      width: ${node.properties['borderWidth']},');
+            buffer.write('\n${indentStr}    ),');
+          }
+          buffer.write('\n${indentStr}  ),');
+        }
+        
+        if (node.children.isNotEmpty) {
+          buffer.write('\n${indentStr}  child: ${_generateWidgetCode(node.children.first, indent + 1, theme)},');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      case 'Row Widget':
+        buffer.write('Row(');
+        if (node.properties['mainAxisAlignment'] != null) {
+          buffer.write('\n${indentStr}  mainAxisAlignment: MainAxisAlignment.${node.properties['mainAxisAlignment']},');
+        }
+        if (node.properties['crossAxisAlignment'] != null) {
+          buffer.write('\n${indentStr}  crossAxisAlignment: CrossAxisAlignment.${node.properties['crossAxisAlignment']},');
+        }
+        if (node.children.isNotEmpty) {
+          buffer.write('\n${indentStr}  children: [');
+          for (final child in node.children) {
+            buffer.write('\n${indentStr}    ${_generateWidgetCode(child, indent + 2, theme)},');
+          }
+          buffer.write('\n${indentStr}  ],');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      case 'Column Widget':
+        buffer.write('Column(');
+        if (node.properties['mainAxisAlignment'] != null) {
+          buffer.write('\n${indentStr}  mainAxisAlignment: MainAxisAlignment.${node.properties['mainAxisAlignment']},');
+        }
+        if (node.properties['crossAxisAlignment'] != null) {
+          buffer.write('\n${indentStr}  crossAxisAlignment: CrossAxisAlignment.${node.properties['crossAxisAlignment']},');
+        }
+        if (node.children.isNotEmpty) {
+          buffer.write('\n${indentStr}  children: [');
+          for (final child in node.children) {
+            buffer.write('\n${indentStr}    ${_generateWidgetCode(child, indent + 2, theme)},');
+          }
+          buffer.write('\n${indentStr}  ],');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      case 'Text Widget':
+        final text = node.properties['text']?.toString() ?? 'Text';
+        buffer.write('Text(');
+        buffer.write('\n${indentStr}  \'$text\',');
+        buffer.write('\n${indentStr}  style: TextStyle(');
+        if (node.properties['fontSize'] != null) {
+          buffer.write('\n${indentStr}    fontSize: ${node.properties['fontSize']},');
+        }
+        if (node.properties['color'] != null) {
+          final color = node.properties['color'].toString();
+          buffer.write('\n${indentStr}    color: Color(${color.replaceFirst('#', '0x')}),');
+        }
+        if (node.properties['fontWeight'] != null && node.properties['fontWeight'] != 'normal') {
+          buffer.write('\n${indentStr}    fontWeight: FontWeight.${node.properties['fontWeight']},');
+        }
+        buffer.write('\n${indentStr}  ),');
+        if (node.properties['textAlign'] != null && node.properties['textAlign'] != 'left') {
+          buffer.write('\n${indentStr}  textAlign: TextAlign.${node.properties['textAlign']},');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      case 'TextField Widget':
+        buffer.write('TextField(');
+        buffer.write('\n${indentStr}  decoration: InputDecoration(');
+        if (node.properties['hintText'] != null) {
+          buffer.write('\n${indentStr}    hintText: \'${node.properties['hintText']}\',');
+        }
+        if (node.properties['labelText'] != null) {
+          buffer.write('\n${indentStr}    labelText: \'${node.properties['labelText']}\',');
+        }
+        buffer.write('\n${indentStr}  ),');
+        if (node.properties['obscureText'] == true) {
+          buffer.write('\n${indentStr}  obscureText: true,');
+        }
+        if (node.properties['maxLines'] != null && node.properties['maxLines'] != 1) {
+          buffer.write('\n${indentStr}  maxLines: ${(node.properties['maxLines'] as double).toInt()},');
+        }
+        buffer.write('\n$indentStr)');
+        break;
+        
+      default:
+        buffer.write('Container()');
+    }
+    
+    return buffer.toString();
+  }
+}
+
+class PreviewCanvas extends StatelessWidget {
+  final WidgetNode scaffoldWidget;
+  final AppTheme appTheme;
+
+  const PreviewCanvas({
+    super.key,
+    required this.scaffoldWidget,
+    required this.appTheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF212121),
+      child: Center(
+        child: Container(
+          width: 400,
+          height: 600,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFF666666), width: 2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: _buildPreviewWidget(scaffoldWidget),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewWidget(WidgetNode node) {
+    switch (node.type) {
+      case 'Scaffold':
+        return Scaffold(
+          backgroundColor: _parseColor(node.properties['backgroundColor']?.toString() ?? '#FF2F2F2F'),
+          body: node.children.isNotEmpty ? _buildPreviewWidget(node.children.first) : null,
+        );
+        
+      case 'Container Widget':
+        return Container(
+          width: node.properties['width'] as double?,
+          height: node.properties['height'] as double?,
+          padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+          margin: EdgeInsets.all(node.properties['margin'] as double? ?? 0),
+          constraints: BoxConstraints(
+            minWidth: node.properties['minWidth'] as double? ?? 0,
+            maxWidth: node.properties['maxWidth'] as double? ?? double.infinity,
+            minHeight: node.properties['minHeight'] as double? ?? 0,
+            maxHeight: node.properties['maxHeight'] as double? ?? double.infinity,
+          ),
+          decoration: BoxDecoration(
+            color: _parseColor(node.properties['color']?.toString() ?? '#FF3F3F3F'),
+            borderRadius: BorderRadius.circular(node.properties['borderRadius'] as double? ?? 0),
+            border: (node.properties['borderWidth'] as double? ?? 0) > 0
+                ? Border.all(
+                    color: _parseColor(node.properties['borderColor']?.toString() ?? '#FF666666'),
+                    width: node.properties['borderWidth'] as double? ?? 0,
+                  )
+                : null,
+          ),
+          alignment: _parseAlignment(node.properties['alignment']?.toString() ?? 'center'),
+          child: node.children.isNotEmpty ? _buildPreviewWidget(node.children.first) : null,
+        );
+        
+      case 'Row Widget':
+        return Container(
+          padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+          margin: EdgeInsets.all(node.properties['margin'] as double? ?? 0),
+          child: Row(
+            mainAxisAlignment: _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString() ?? 'start'),
+            crossAxisAlignment: _parseCrossAxisAlignment(node.properties['crossAxisAlignment']?.toString() ?? 'center'),
+            mainAxisSize: _parseMainAxisSize(node.properties['mainAxisSize']?.toString() ?? 'max'),
+            children: node.children.map((child) => _buildPreviewWidget(child)).toList(),
+          ),
+        );
+        
+      case 'Column Widget':
+        return Container(
+          padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+          margin: EdgeInsets.all(node.properties['margin'] as double? ?? 0),
+          child: Column(
+            mainAxisAlignment: _parseMainAxisAlignment(node.properties['mainAxisAlignment']?.toString() ?? 'start'),
+            crossAxisAlignment: _parseCrossAxisAlignment(node.properties['crossAxisAlignment']?.toString() ?? 'center'),
+            mainAxisSize: _parseMainAxisSize(node.properties['mainAxisSize']?.toString() ?? 'max'),
+            children: node.children.map((child) => _buildPreviewWidget(child)).toList(),
+          ),
+        );
+        
+      case 'Text Widget':
+        return Container(
+          padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+          margin: EdgeInsets.all(node.properties['margin'] as double? ?? 0),
+          child: Text(
+            node.properties['text']?.toString() ?? 'Text',
+            style: TextStyle(
+              fontSize: node.properties['fontSize'] as double? ?? 16.0,
+              color: _parseColor(node.properties['color']?.toString() ?? appTheme.textColor.value.toRadixString(16).padLeft(8, '0')),
+              fontWeight: _parseFontWeight(node.properties['fontWeight']?.toString() ?? 'normal'),
+              fontFamily: node.properties['fontFamily']?.toString() ?? appTheme.fontFamily,
+              letterSpacing: node.properties['letterSpacing'] as double?,
+              height: node.properties['lineHeight'] as double?,
+            ),
+            textAlign: _parseTextAlign(node.properties['textAlign']?.toString() ?? 'left'),
+            maxLines: (node.properties['maxLines'] as double?)?.toInt(),
+            overflow: _parseTextOverflow(node.properties['overflow']?.toString() ?? 'clip'),
+          ),
+        );
+        
+      case 'TextField Widget':
+        return Container(
+          padding: EdgeInsets.all(node.properties['padding'] as double? ?? 8),
+          margin: EdgeInsets.all(node.properties['margin'] as double? ?? 0),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: node.properties['hintText']?.toString() ?? 'Enter text...',
+              labelText: node.properties['labelText']?.toString() ?? 'Label',
+              border: const OutlineInputBorder(),
+              filled: node.properties['filled'] as bool? ?? false,
+              fillColor: node.properties['fillColor'] != null 
+                  ? _parseColor(node.properties['fillColor'].toString())
+                  : null,
+            ),
+            obscureText: node.properties['obscureText'] ?? false,
+            enabled: node.properties['enabled'] ?? true,
+            maxLines: (node.properties['maxLines'] as double?)?.toInt() ?? 1,
+          ),
+        );
+        
+      default:
+        return Container(
+          width: 100,
+          height: 60,
+          color: Colors.grey,
+          child: const Center(
+            child: Text('Unknown Widget'),
+          ),
+        );
+    }
+  }
+
+  Color _parseColor(String colorString) {
+    try {
+      return Color(int.parse(colorString.replaceFirst('#', '0x')));
+    } catch (e) {
+      return const Color(0xFF3F3F3F);
+    }
+  }
+
+  Alignment _parseAlignment(String alignment) {
+    switch (alignment) {
+      case 'topLeft': return Alignment.topLeft;
+      case 'topCenter': return Alignment.topCenter;
+      case 'topRight': return Alignment.topRight;
+      case 'centerLeft': return Alignment.centerLeft;
+      case 'center': return Alignment.center;
+      case 'centerRight': return Alignment.centerRight;
+      case 'bottomLeft': return Alignment.bottomLeft;
+      case 'bottomCenter': return Alignment.bottomCenter;
+      case 'bottomRight': return Alignment.bottomRight;
+      default: return Alignment.center;
+    }
+  }
+
+  MainAxisAlignment _parseMainAxisAlignment(String alignment) {
+    switch (alignment) {
+      case 'start': return MainAxisAlignment.start;
+      case 'end': return MainAxisAlignment.end;
+      case 'center': return MainAxisAlignment.center;
+      case 'spaceBetween': return MainAxisAlignment.spaceBetween;
+      case 'spaceAround': return MainAxisAlignment.spaceAround;
+      case 'spaceEvenly': return MainAxisAlignment.spaceEvenly;
+      default: return MainAxisAlignment.start;
+    }
+  }
+
+  CrossAxisAlignment _parseCrossAxisAlignment(String alignment) {
+    switch (alignment) {
+      case 'start': return CrossAxisAlignment.start;
+      case 'end': return CrossAxisAlignment.end;
+      case 'center': return CrossAxisAlignment.center;
+      case 'stretch': return CrossAxisAlignment.stretch;
+      case 'baseline': return CrossAxisAlignment.baseline;
+      default: return CrossAxisAlignment.center;
+    }
+  }
+
+  MainAxisSize _parseMainAxisSize(String size) {
+    switch (size) {
+      case 'min': return MainAxisSize.min;
+      case 'max': return MainAxisSize.max;
+      default: return MainAxisSize.max;
+    }
+  }
+
+  FontWeight _parseFontWeight(String fontWeight) {
+    switch (fontWeight) {
+      case 'bold': return FontWeight.bold;
+      case 'w100': return FontWeight.w100;
+      case 'w200': return FontWeight.w200;
+      case 'w300': return FontWeight.w300;
+      case 'w400': return FontWeight.w400;
+      case 'w500': return FontWeight.w500;
+      case 'w600': return FontWeight.w600;
+      case 'w700': return FontWeight.w700;
+      case 'w800': return FontWeight.w800;
+      case 'w900': return FontWeight.w900;
+      default: return FontWeight.normal;
+    }
+  }
+
+  TextAlign _parseTextAlign(String textAlign) {
+    switch (textAlign) {
+      case 'left': return TextAlign.left;
+      case 'right': return TextAlign.right;
+      case 'center': return TextAlign.center;
+      case 'justify': return TextAlign.justify;
+      default: return TextAlign.left;
+    }
+  }
+
+  TextOverflow _parseTextOverflow(String overflow) {
+    switch (overflow) {
+      case 'clip': return TextOverflow.clip;
+      case 'fade': return TextOverflow.fade;
+      case 'ellipsis': return TextOverflow.ellipsis;
+      case 'visible': return TextOverflow.visible;
+      default: return TextOverflow.clip;
+    }
+  }
+}
+
+class WidgetProperties {
+  static Map<String, dynamic> getDefaultProperties(String widgetType) {
+    switch (widgetType) {
+      case 'Container Widget':
+        return {
+          'width': 150.0,
+          'height': 150.0,
+          'color': '#FF3F3F3F',
+          'padding': 8.0,
+          'margin': 0.0,
+          'alignment': 'center',
+          'borderRadius': 8.0,
+          'borderWidth': 0.0,
+          'borderColor': '#FF666666',
+          'minWidth': 0.0,
+          'maxWidth': double.infinity,
+          'minHeight': 0.0,
+          'maxHeight': double.infinity,
+        };
+      case 'Row Widget':
+        return {
+          'mainAxisAlignment': 'start',
+          'crossAxisAlignment': 'center',
+          'mainAxisSize': 'max',
+          'padding': 0.0,
+          'margin': 0.0,
+        };
+      case 'Column Widget':
+        return {
+          'mainAxisAlignment': 'start',
+          'crossAxisAlignment': 'center',
+          'mainAxisSize': 'max',
+          'padding': 0.0,
+          'margin': 0.0,
+        };
+      case 'Text Widget':
+        return {
+          'text': 'Text',
+          'fontSize': 16.0,
+          'fontWeight': 'normal',
+          'color': '#FFEDF1EE',
+          'textAlign': 'left',
+          'fontFamily': 'Roboto',
+          'letterSpacing': 0.0,
+          'lineHeight': 1.0,
+          'maxLines': null,
+          'overflow': 'clip',
+          'padding': 0.0,
+          'margin': 0.0,
+        };
+      case 'TextField Widget':
+        return {
+          'hintText': 'Enter text...',
+          'labelText': 'Label',
+          'obscureText': false,
+          'enabled': true,
+          'maxLines': 1,
+          'filled': false,
+          'fillColor': '#FF2F2F2F',
+          'padding': 8.0,
+          'margin': 0.0,
+        };
+      case 'Scaffold':
+        return {
+          'backgroundColor': '#FF2F2F2F',
+        };
+      default:
+        return {};
+    }
+  }
+
+  static List<PropertyDefinition> getPropertyDefinitions(String widgetType) {
+    switch (widgetType) {
+      case 'Container Widget':
+        return [
+          PropertyDefinition('width', 'Width', PropertyType.number),
+          PropertyDefinition('height', 'Height', PropertyType.number),
+          PropertyDefinition('color', 'Color', PropertyType.color),
+          PropertyDefinition('padding', 'Padding', PropertyType.number),
+          PropertyDefinition('margin', 'Margin', PropertyType.number),
+          PropertyDefinition('alignment', 'Alignment', PropertyType.dropdown, 
+            options: ['topLeft', 'topCenter', 'topRight', 'centerLeft', 'center', 'centerRight', 'bottomLeft', 'bottomCenter', 'bottomRight']),
+          PropertyDefinition('borderRadius', 'Border Radius', PropertyType.number),
+          PropertyDefinition('borderWidth', 'Border Width', PropertyType.number),
+          PropertyDefinition('borderColor', 'Border Color', PropertyType.color),
+          PropertyDefinition('minWidth', 'Min Width', PropertyType.number),
+          PropertyDefinition('maxWidth', 'Max Width', PropertyType.number),
+          PropertyDefinition('minHeight', 'Min Height', PropertyType.number),
+          PropertyDefinition('maxHeight', 'Max Height', PropertyType.number),
+        ];
+      case 'Row Widget':
+        return [
+          PropertyDefinition('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown,
+            options: ['start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+          PropertyDefinition('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown,
+            options: ['start', 'end', 'center', 'stretch', 'baseline']),
+          PropertyDefinition('mainAxisSize', 'Main Axis Size', PropertyType.dropdown,
+            options: ['min', 'max']),
+          PropertyDefinition('padding', 'Padding', PropertyType.number),
+          PropertyDefinition('margin', 'Margin', PropertyType.number),
+        ];
+      case 'Column Widget':
+        return [
+          PropertyDefinition('mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown,
+            options: ['start', 'end', 'center', 'spaceBetween', 'spaceAround', 'spaceEvenly']),
+          PropertyDefinition('crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown,
+            options: ['start', 'end', 'center', 'stretch', 'baseline']),
+          PropertyDefinition('mainAxisSize', 'Main Axis Size', PropertyType.dropdown,
+            options: ['min', 'max']),
+          PropertyDefinition('padding', 'Padding', PropertyType.number),
+          PropertyDefinition('margin', 'Margin', PropertyType.number),
+        ];
+      case 'Text Widget':
+        return [
+          PropertyDefinition('text', 'Text', PropertyType.text),
+          PropertyDefinition('fontSize', 'Font Size', PropertyType.number),
+          PropertyDefinition('fontWeight', 'Font Weight', PropertyType.dropdown,
+            options: ['normal', 'bold', 'w100', 'w200', 'w300', 'w400', 'w500', 'w600', 'w700', 'w800', 'w900']),
+          PropertyDefinition('color', 'Color', PropertyType.color),
+          PropertyDefinition('textAlign', 'Text Align', PropertyType.dropdown,
+            options: ['left', 'right', 'center', 'justify']),
+          PropertyDefinition('fontFamily', 'Font Family', PropertyType.dropdown,
+            options: ['Roboto', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New']),
+          PropertyDefinition('letterSpacing', 'Letter Spacing', PropertyType.number),
+          PropertyDefinition('lineHeight', 'Line Height', PropertyType.number),
+          PropertyDefinition('maxLines', 'Max Lines', PropertyType.number),
+          PropertyDefinition('overflow', 'Overflow', PropertyType.dropdown,
+            options: ['clip', 'fade', 'ellipsis', 'visible']),
+          PropertyDefinition('padding', 'Padding', PropertyType.number),
+          PropertyDefinition('margin', 'Margin', PropertyType.number),
+        ];
+      case 'TextField Widget':
+        return [
+          PropertyDefinition('hintText', 'Hint Text', PropertyType.text),
+          PropertyDefinition('labelText', 'Label Text', PropertyType.text),
+          PropertyDefinition('obscureText', 'Obscure Text', PropertyType.boolean),
+          PropertyDefinition('enabled', 'Enabled', PropertyType.boolean),
+          PropertyDefinition('maxLines', 'Max Lines', PropertyType.number),
+          PropertyDefinition('filled', 'Filled', PropertyType.boolean),
+          PropertyDefinition('fillColor', 'Fill Color', PropertyType.color),
+          PropertyDefinition('padding', 'Padding', PropertyType.number),
+          PropertyDefinition('margin', 'Margin', PropertyType.number),
+        ];
+      case 'Scaffold':
+        return [
+          PropertyDefinition('backgroundColor', 'Background Color', PropertyType.color),
+        ];
+      default:
+        return [];
+    }
+  }
+}
+
+class PropertyDefinition {
+  final String key;
+  final String label;
+  final PropertyType type;
+  final List<String>? options;
+
+  PropertyDefinition(this.key, this.label, this.type, {this.options});
+}
+
+enum PropertyType {
+  text,
+  number,
+  boolean,
+  color,
+  dropdown,
+}
+
+class WidgetConstraints {
+  final int maxChildren; // -1 for unlimited, 0 for no children, positive number for limit
+  final bool canHaveChildren;
+
+  const WidgetConstraints({
+    required this.maxChildren,
+    required this.canHaveChildren,
+  });
+
+  static WidgetConstraints getConstraints(String widgetType) {
+    switch (widgetType) {
+      case 'Scaffold':
+        return const WidgetConstraints(maxChildren: 1, canHaveChildren: true);
+      case 'Column Widget':
+      case 'Row Widget':
+      case 'Stack Widget':
+        return const WidgetConstraints(maxChildren: -1, canHaveChildren: true); // Unlimited
+      case 'Container Widget':
+        return const WidgetConstraints(maxChildren: 1, canHaveChildren: true);
+      case 'Text Widget':
+      case 'TextField Widget':
+      case 'Image Widget':
+        return const WidgetConstraints(maxChildren: 0, canHaveChildren: false); // No children
+      default:
+        return const WidgetConstraints(maxChildren: 0, canHaveChildren: false);
+    }
+  }
+}
+
+class WidgetNode {
+  String id;
+  String type;
+  String label;
+  IconData icon;
+  Offset position;
+  Size size;
+  List<WidgetNode> children;
+  Map<String, dynamic> properties;
+
+  WidgetNode({
+    required this.id,
+    required this.type,
+    required this.label,
+    required this.icon,
+    required this.position,
+    required this.size,
+    required this.children,
+    required this.properties,
+  });
+}
+
+class IconBar extends StatelessWidget {
+  final String selectedPane;
+  final Function(String) onPaneSelected;
+
+  const IconBar({
+    super.key,
+    required this.selectedPane,
+    required this.onPaneSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        children: [
+          const SizedBox(height: 32),
+          _buildIconButton(Icons.build, 'build', 'Build'),
+          const SizedBox(height: 15),
+          _buildIconButton(Icons.account_tree, 'widget-tree', 'Widget Tree'),
+          const SizedBox(height: 15),
+          _buildIconButton(Icons.palette, 'theme', 'Theme'),
+          const SizedBox(height: 15),
+          _buildIconButton(Icons.file_download, 'import', 'Import'),
+          const SizedBox(height: 15),
+          _buildIconButton(Icons.file_upload, 'export', 'Export'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconButton(IconData icon, String pane, String label) {
+    final isSelected = selectedPane == pane;
+    return GestureDetector(
+      onTap: () => onPaneSelected(pane),
+      child: Container(
+        width: 64,
+        height: 61,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE0E0E0) : Colors.transparent,
+          borderRadius: BorderRadius.circular(0),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? const Color(0xFF212121) : const Color(0xFFEDF1EE),
+              size: 24,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFF212121) : const Color(0xFFEDF1EE),
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LeftSidebar extends StatelessWidget {
+  final String selectedPane;
+  final WidgetNode scaffoldWidget;
+  final AppTheme appTheme;
+  final Function(AppTheme) onThemeChanged;
+  final Function(WidgetData) onWidgetDropped;
+
+  const LeftSidebar({
+    super.key,
+    required this.selectedPane,
+    required this.scaffoldWidget,
+    required this.appTheme,
+    required this.onThemeChanged,
+    required this.onWidgetDropped,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedPane == 'build') {
+      return BuildPane(onWidgetDropped: onWidgetDropped);
+    } else if (selectedPane == 'widget-tree') {
+      return WidgetTreePane(scaffoldWidget: scaffoldWidget);
+    } else if (selectedPane == 'theme') {
+      return ThemePane(
+        appTheme: appTheme,
+        onThemeChanged: onThemeChanged,
+      );
+    } else if (selectedPane == 'import') {
+      return const ImportPane();
+    } else if (selectedPane == 'export') {
+      return const ExportPane();
+    } else {
+      return const Center(
+        child: Text(
+          'Select a pane',
+          style: TextStyle(color: Color(0xFFEDF1EE)),
+        ),
+      );
+    }
+  }
+}
+
+class ThemePane extends StatelessWidget {
+  final AppTheme appTheme;
+  final Function(AppTheme) onThemeChanged;
+
+  const ThemePane({
+    super.key,
+    required this.appTheme,
+    required this.onThemeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Theme',
+            style: TextStyle(
+              color: Color(0xFFEDF1EE),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: ListView(
+              children: [
+                _buildColorProperty(context, 'Primary Color', appTheme.primaryColor, (color) {
+                  onThemeChanged(appTheme.copyWith(primaryColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildColorProperty(context, 'Secondary Color', appTheme.secondaryColor, (color) {
+                  onThemeChanged(appTheme.copyWith(secondaryColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildColorProperty(context, 'Background Color', appTheme.backgroundColor, (color) {
+                  onThemeChanged(appTheme.copyWith(backgroundColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildColorProperty(context, 'Surface Color', appTheme.surfaceColor, (color) {
+                  onThemeChanged(appTheme.copyWith(surfaceColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildColorProperty(context, 'Text Color', appTheme.textColor, (color) {
+                  onThemeChanged(appTheme.copyWith(textColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildColorProperty(context, 'Accent Color', appTheme.accentColor, (color) {
+                  onThemeChanged(appTheme.copyWith(accentColor: color));
+                }),
+                const SizedBox(height: 16),
+                _buildNumberProperty('Border Radius', appTheme.borderRadius, (value) {
+                  onThemeChanged(appTheme.copyWith(borderRadius: value));
+                }),
+                const SizedBox(height: 16),
+                _buildNumberProperty('Default Padding', appTheme.defaultPadding, (value) {
+                  onThemeChanged(appTheme.copyWith(defaultPadding: value));
+                }),
+                const SizedBox(height: 16),
+                _buildDropdownProperty('Font Family', appTheme.fontFamily, 
+                  ['Roboto', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New'], (value) {
+                  onThemeChanged(appTheme.copyWith(fontFamily: value));
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorProperty(BuildContext context, String label, Color color, Function(Color) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFEDF1EE),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => ColorPickerDialog(
+                initialColor: color,
+                onColorChanged: onChanged,
+              ),
+            );
+          },
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              border: Border.all(color: const Color(0xFF666666)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Text(
+                  '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+                  style: TextStyle(
+                    color: color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.color_lens,
+                  color: Color(0xFFEDF1EE),
+                  size: 16,
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNumberProperty(String label, double value, Function(double) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFEDF1EE),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF3F3F3F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+          ),
+          keyboardType: TextInputType.number,
+          controller: TextEditingController(text: value.toString()),
+          onChanged: (val) {
+            final numValue = double.tryParse(val) ?? value;
+            onChanged(numValue);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownProperty(String label, String value, List<String> options, Function(String) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFEDF1EE),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF3F3F3F),
+            border: Border.all(color: const Color(0xFF666666)),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            underline: Container(),
+            dropdownColor: const Color(0xFF3F3F3F),
+            style: const TextStyle(color: Color(0xFFEDF1EE)),
+            items: options.map((option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(option),
+                ),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                onChanged(val);
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class BuildPane extends StatefulWidget {
+  final Function(WidgetData) onWidgetDropped;
+
+  const BuildPane({
+    super.key,
+    required this.onWidgetDropped,
+  });
+
+  @override
+  State<BuildPane> createState() => _BuildPaneState();
+}
+
+class _BuildPaneState extends State<BuildPane> {
+  bool layoutWidgetsExpanded = true;
+  bool displayWidgetsExpanded = true;
+  bool inputWidgetsExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: const Text(
+            'Build',
+            style: TextStyle(
+              color: Color(0xFFEDF1EE),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        // Search Bar
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE0E0E0),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.search, color: Color(0xFF060A07), size: 16),
+                SizedBox(width: 12),
+                Text(
+                  'Search components',
+                  style: TextStyle(
+                    color: Color(0xFF060A07),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Widget Categories
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              // Layout Widgets Section
+              _buildWidgetSection(
+                'Layout Widgets',
+                layoutWidgetsExpanded,
+                () => setState(() => layoutWidgetsExpanded = !layoutWidgetsExpanded),
+                [
+                  _buildWidgetCard(Icons.view_column, 'Column', 'Column Widget', 'Multiple children'),
+                  _buildWidgetCard(Icons.view_stream, 'Row', 'Row Widget', 'Multiple children'),
+                  _buildWidgetCard(Icons.crop_square, 'Container', 'Container Widget', 'Single child'),
+                  _buildWidgetCard(Icons.view_in_ar, 'Stack', 'Stack Widget', 'Multiple children'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Display Widgets Section
+              _buildWidgetSection(
+                'Display Widgets',
+                displayWidgetsExpanded,
+                () => setState(() => displayWidgetsExpanded = !displayWidgetsExpanded),
+                [
+                  _buildWidgetCard(Icons.text_fields, 'Text', 'Text Widget', 'No children'),
+                  _buildWidgetCard(Icons.image, 'Image', 'Image Widget', 'No children'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Input Widgets Section
+              _buildWidgetSection(
+                'Input Widgets',
+                inputWidgetsExpanded,
+                () => setState(() => inputWidgetsExpanded = !inputWidgetsExpanded),
+                [
+                  _buildWidgetCard(Icons.input, 'TextField', 'TextField Widget', 'No children'),
+                  null, // Empty slot
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWidgetSection(String title, bool isExpanded, VoidCallback onToggle, List<Widget?> widgets) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onToggle,
+          child: Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                color: const Color(0xFFEDF1EE),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.8,
+            children: widgets.map((widget) => widget ?? _buildEmptyCard()).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildWidgetCard(IconData icon, String label, String widgetType, String childrenInfo) {
+    return Draggable<WidgetData>(
+      data: WidgetData(
+        type: widgetType,
+        label: label,
+        icon: icon,
+        position: const Offset(0, 0),
+      ),
+      feedback: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+        ),
+        child: Icon(icon, color: const Color(0xFF212121), size: 32),
+      ),
+      childWhenDragging: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF3F3F3F),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
+        ),
+        child: const Center(
+          child: Text(
+            'Dragging...',
+            style: TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0E0E0),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: const Color(0xFF212121), size: 28),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF212121),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                childrenInfo,
+                style: const TextStyle(
+                  color: Color(0xFF666666),
+                  fontSize: 10,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF3F3F3F),
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
+}
+
+class WidgetTreePane extends StatelessWidget {
+  final WidgetNode scaffoldWidget;
+
+  const WidgetTreePane({
+    super.key,
+    required this.scaffoldWidget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Widget Tree',
+            style: TextStyle(
+              color: Color(0xFFEDF1EE),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: ListView(
+              children: [_buildTreeNode(scaffoldWidget, 0)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTreeNode(WidgetNode node, int depth) {
+    final constraints = WidgetConstraints.getConstraints(node.type);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: depth * 16.0),
+          child: Row(
+            children: [
+              if (node.children.isNotEmpty)
+                const Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Color(0xFFEDF1EE),
+                  size: 16,
+                )
+              else if (constraints.canHaveChildren)
+                const Icon(
+                  Icons.keyboard_arrow_right,
+                  color: Color(0xFF666666),
+                  size: 16,
+                )
+              else
+                const SizedBox(width: 16),
+              Icon(node.icon, color: const Color(0xFFEDF1EE), size: 16),
+              const SizedBox(width: 8),
+              Text(
+                node.label,
+                style: const TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (constraints.maxChildren == 1)
+                const Text(
+                  '(1 child max)',
+                  style: TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 12,
+                  ),
+                )
+              else if (constraints.maxChildren == -1)
+                const Text(
+                  '(multiple children)',
+                  style: TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 12,
+                  ),
+                )
+              else if (constraints.maxChildren == 0)
+                const Text(
+                  '(no children)',
+                  style: TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        ...node.children.map((child) => _buildTreeNode(child, depth + 1)),
+      ],
+    );
+  }
+}
+
+class ImportPane extends StatelessWidget {
+  const ImportPane({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Import',
+            style: TextStyle(
+              color: Color(0xFFEDF1EE),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 20),
+          Text(
+            'Import functionality will be displayed here',
+            style: TextStyle(color: Color(0xFFEDF1EE)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ExportPane extends StatelessWidget {
+  const ExportPane({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Export',
+            style: TextStyle(
+              color: Color(0xFFEDF1EE),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 20),
+          Text(
+            'Export functionality will be displayed here',
+            style: TextStyle(color: Color(0xFFEDF1EE)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PropertiesPanel extends StatelessWidget {
+  final WidgetNode? selectedWidget;
+  final AppTheme appTheme;
+  final Function(String, String, dynamic) onPropertyChanged;
+  final Function(String) onWidgetRemoved;
+
+  const PropertiesPanel({
+    super.key,
+    this.selectedWidget,
+    required this.appTheme,
+    required this.onPropertyChanged,
+    required this.onWidgetRemoved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Properties',
+                style: TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              if (selectedWidget != null && selectedWidget!.type != 'Scaffold')
+                IconButton(
+                  onPressed: () => onWidgetRemoved(selectedWidget!.id),
+                  icon: const Icon(
+                    Icons.delete,
+                    color: Color(0xFFFF5252),
+                    size: 20,
+                  ),
+                  tooltip: 'Remove Widget',
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (selectedWidget != null) ...[
+            Text(
+              'Selected: ${selectedWidget!.label}',
+              style: const TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Type: ${selectedWidget!.type}',
+              style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Children: ${selectedWidget!.children.length}',
+              style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFF666666)),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _buildPropertiesEditor(context),
+            ),
+          ] else
+            const Text(
+              'Select a widget to edit its properties',
+              style: TextStyle(color: Color(0xFFEDF1EE)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPropertiesEditor(BuildContext context) {
+    final properties = WidgetProperties.getPropertyDefinitions(selectedWidget!.type);
+    
+    return ListView.builder(
+      itemCount: properties.length,
+      itemBuilder: (context, index) {
+        final property = properties[index];
+        final currentValue = selectedWidget!.properties[property.key];
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                property.label,
+                style: const TextStyle(
+                  color: Color(0xFFEDF1EE),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPropertyInput(context, property, currentValue),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPropertyInput(BuildContext context, PropertyDefinition property, dynamic currentValue) {
+    switch (property.type) {
+      case PropertyType.text:
+        final controller = TextEditingController(text: currentValue?.toString() ?? '');
+        // Fix text reversal issue by setting cursor position properly
+        controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: controller.text.length),
+        );
+        
+        return TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF3F3F3F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+          ),
+          controller: controller,
+          onChanged: (value) {
+            onPropertyChanged(selectedWidget!.id, property.key, value);
+          },
+        );
+      
+      case PropertyType.number:
+        return TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE)),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF3F3F3F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+          ),
+          keyboardType: TextInputType.number,
+          controller: TextEditingController(text: currentValue?.toString() ?? '0'),
+          onChanged: (value) {
+            final numValue = double.tryParse(value) ?? 0.0;
+            onPropertyChanged(selectedWidget!.id, property.key, numValue);
+          },
+        );
+      
+      case PropertyType.boolean:
+        return Row(
+          children: [
+            Switch(
+              value: currentValue ?? false,
+              onChanged: (value) {
+                onPropertyChanged(selectedWidget!.id, property.key, value);
+              },
+              activeColor: const Color(0xFF4CAF50),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              currentValue == true ? 'True' : 'False',
+              style: const TextStyle(color: Color(0xFFEDF1EE)),
+            ),
+          ],
+        );
+      
+      case PropertyType.color:
+        return GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => ColorPickerDialog(
+                initialColor: _parseColor(currentValue?.toString() ?? '#FF3F3F3F'),
+                onColorChanged: (color) {
+                  final hexColor = '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+                  onPropertyChanged(selectedWidget!.id, property.key, hexColor);
+                },
+              ),
+            );
+          },
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: _parseColor(currentValue?.toString() ?? '#FF3F3F3F'),
+              border: Border.all(color: const Color(0xFF666666)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Text(
+                  currentValue?.toString() ?? '#FF3F3F3F',
+                  style: TextStyle(
+                    color: _parseColor(currentValue?.toString() ?? '#FF3F3F3F').computeLuminance() > 0.5 
+                        ? Colors.black 
+                        : Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.color_lens,
+                  color: Color(0xFFEDF1EE),
+                  size: 16,
+                ),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+        );
+      
+      case PropertyType.dropdown:
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF3F3F3F),
+            border: Border.all(color: const Color(0xFF666666)),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: DropdownButton<String>(
+            value: currentValue?.toString(),
+            isExpanded: true,
+            underline: Container(),
+            dropdownColor: const Color(0xFF3F3F3F),
+            style: const TextStyle(color: Color(0xFFEDF1EE)),
+            items: property.options?.map((option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(option),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                onPropertyChanged(selectedWidget!.id, property.key, value);
+              }
+            },
+          ),
+        );
+      
+      default:
+        return const SizedBox();
+    }
+  }
+
+  Color _parseColor(String colorString) {
+    try {
+      return Color(int.parse(colorString.replaceFirst('#', '0x')));
+    } catch (e) {
+      return const Color(0xFF3F3F3F);
+    }
+  }
+}
+
+class DesignCanvas extends StatefulWidget {
+  final WidgetNode scaffoldWidget;
+  final String? selectedWidgetId;
+  final AppTheme appTheme;
+  final Function(String) onWidgetSelected;
+  final Function(String, WidgetData) onWidgetAdded;
+  final Function(String, Offset) onWidgetMoved;
+  final Function(String, Size) onWidgetResized;
+
+  const DesignCanvas({
+    super.key,
+    required this.scaffoldWidget,
+    required this.selectedWidgetId,
+    required this.appTheme,
+    required this.onWidgetSelected,
+    required this.onWidgetAdded,
+    required this.onWidgetMoved,
+    required this.onWidgetResized,
+  });
+
+  @override
+  State<DesignCanvas> createState() => _DesignCanvasState();
+}
+
+class _DesignCanvasState extends State<DesignCanvas> {
+  String? _hoveredWidgetId;
+  String? _resizingWidgetId;
+  Offset? _resizeStartPosition;
+  Size? _resizeStartSize;
+  double _canvasScale = 1.0;
+  Offset _canvasOffset = Offset.zero;
+  String? _dragTargetId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF212121),
+      child: Stack(
+        children: [
+          // Canvas controls
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2F2F2F),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF666666)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _canvasScale = (_canvasScale * 1.2).clamp(0.5, 3.0);
+                      });
+                    },
+                    icon: const Icon(Icons.zoom_in, color: Color(0xFFEDF1EE), size: 20),
+                    tooltip: 'Zoom In',
+                  ),
+                  Text(
+                    '${(_canvasScale * 100).round()}%',
+                    style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _canvasScale = (_canvasScale / 1.2).clamp(0.5, 3.0);
+                      });
+                    },
+                    icon: const Icon(Icons.zoom_out, color: Color(0xFFEDF1EE), size: 20),
+                    tooltip: 'Zoom Out',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _canvasScale = 1.0;
+                        _canvasOffset = Offset.zero;
+                      });
+                    },
+                    icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 20),
+                    tooltip: 'Reset View',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Main canvas
+          GestureDetector(
+            onPanUpdate: (details) {
+              if (_resizingWidgetId == null) {
+                setState(() {
+                  _canvasOffset += details.delta;
+                });
+              }
+            },
+            child: Transform.scale(
+              scale: _canvasScale,
+              child: Transform.translate(
+                offset: _canvasOffset,
+                child: DragTarget<WidgetData>(
+                  onWillAcceptWithDetails: (details) {
+                    return _findDeepestWidgetAt(details.offset) != null;
+                  },
+                  onAcceptWithDetails: (details) {
+                    final targetWidget = _findDeepestWidgetAt(details.offset);
+                    if (targetWidget != null) {
+                      widget.onWidgetAdded(targetWidget.id, details.data);
+                    }
+                  },
+                  builder: (context, candidateData, rejectedData) {
+                    return Stack(
+                      children: [
+                        _buildWidgetNode(widget.scaffoldWidget, 0),
+                        
+                        // Drop indicator overlay
+                        if (candidateData.isNotEmpty && _dragTargetId != null)
+                          _buildDropIndicator(),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropIndicator() {
+    final targetWidget = _findWidgetById(_dragTargetId!);
+    if (targetWidget == null) return const SizedBox();
+    
+    return Positioned(
+      left: targetWidget.position.dx,
+      top: targetWidget.position.dy,
+      child: Container(
+        width: targetWidget.size.width,
+        height: targetWidget.size.height,
+        decoration: BoxDecoration(
+          color: const Color(0xFF4CAF50).withOpacity(0.3),
+          border: Border.all(color: const Color(0xFF4CAF50), width: 3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_circle,
+                color: Color(0xFF4CAF50),
+                size: 32,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Drop Here',
+                style: TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  WidgetNode? _findDeepestWidgetAt(Offset globalPosition) {
+    // Convert global position to local canvas position
+    final localPosition = (globalPosition - _canvasOffset) / _canvasScale;
+    
+    WidgetNode? deepestWidget;
+    
+    void searchInWidget(WidgetNode widget) {
+      final widgetRect = Rect.fromLTWH(
+        widget.position.dx,
+        widget.position.dy,
+        widget.size.width,
+        widget.size.height,
+      );
+      
+      if (widgetRect.contains(localPosition)) {
+        final constraints = WidgetConstraints.getConstraints(widget.type);
+        if (constraints.canHaveChildren) {
+          deepestWidget = widget;
+        }
+        
+        // Search in children (they might be deeper)
+        for (final child in widget.children) {
+          searchInWidget(child);
+        }
+      }
+    }
+    
+    searchInWidget(widget.scaffoldWidget);
+    
+    // Update drag target for visual feedback
+    setState(() {
+      _dragTargetId = deepestWidget?.id;
+    });
+    
+    return deepestWidget;
+  }
+
+  WidgetNode? _findWidgetById(String id) {
+    WidgetNode? findInWidget(WidgetNode widget) {
+      if (widget.id == id) return widget;
+      for (final child in widget.children) {
+        final found = findInWidget(child);
+        if (found != null) return found;
+      }
+      return null;
+    }
+    
+    return findInWidget(widget.scaffoldWidget);
+  }
+
+  Widget _buildWidgetNode(WidgetNode node, int depth) {
+    final isSelected = widget.selectedWidgetId == node.id;
+    final isHovered = _hoveredWidgetId == node.id;
+    final isScaffold = node.type == 'Scaffold';
+    final constraints = WidgetConstraints.getConstraints(node.type);
+    
+    return Positioned(
+      left: node.position.dx,
+      top: node.position.dy,
+      child: Stack(
+        children: [
+          // Main widget container
+          GestureDetector(
+            onTap: () => widget.onWidgetSelected(node.id),
+            onPanUpdate: (details) {
+              if (!isScaffold && _resizingWidgetId != node.id) {
+                widget.onWidgetMoved(
+                  node.id,
+                  Offset(
+                    node.position.dx + details.delta.dx / _canvasScale,
+                    node.position.dy + details.delta.dy / _canvasScale,
+                  ),
+                );
+              }
+            },
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hoveredWidgetId = node.id),
+              onExit: (_) => setState(() => _hoveredWidgetId = null),
+              child: Container(
+                width: node.size.width,
+                height: node.size.height,
+                decoration: BoxDecoration(
+                  color: isScaffold 
+                      ? _parseColor(node.properties['backgroundColor']?.toString() ?? '#FF2F2F2F')
+                      : node.type == 'Container Widget'
+                          ? _parseColor(node.properties['color']?.toString() ?? '#FF3F3F3F')
+                          : const Color(0xFF3F3F3F),
+                  border: Border.all(
+                    color: isScaffold 
+                        ? const Color(0xFF4CAF50)
+                        : isSelected || isHovered
+                            ? const Color(0xFF4CAF50) 
+                            : _parseColor(node.properties['borderColor']?.toString() ?? '#FFE0E0E0'),
+                    width: isScaffold ? 2 : (node.properties['borderWidth'] as double? ?? 1),
+                  ),
+                  borderRadius: BorderRadius.circular(
+                    node.type == 'Container Widget' 
+                        ? (node.properties['borderRadius'] as double? ?? 8.0)
+                        : isScaffold ? 8 : 4
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Title bar
+                    if (!isScaffold)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF666666),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(4),
+                              topRight: Radius.circular(4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 8),
+                              Icon(
+                                node.icon,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  node.label,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    
+                    // Widget content
+                    Positioned.fill(
+                      top: isScaffold ? 0 : 24,
+                      child: _buildWidgetContent(node, isScaffold),
+                    ),
+                    
+                    // Child widgets with proper layout
+                    if (node.children.isNotEmpty)
+                      Positioned.fill(
+                        top: isScaffold ? 0 : 24,
+                        child: _buildChildrenLayout(node),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          // Resize handles
+          if (isSelected && !isScaffold) ...[
+            // Bottom-right resize handle
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: GestureDetector(
+                onPanStart: (details) {
+                  setState(() {
+                    _resizingWidgetId = node.id;
+                    _resizeStartPosition = details.globalPosition;
+                    _resizeStartSize = node.size;
+                  });
+                },
+                onPanUpdate: (details) {
+                  if (_resizingWidgetId == node.id && _resizeStartPosition != null && _resizeStartSize != null) {
+                    final delta = (details.globalPosition - _resizeStartPosition!) / _canvasScale;
+                    final newSize = Size(
+                      (_resizeStartSize!.width + delta.dx).clamp(50.0, 800.0),
+                      (_resizeStartSize!.height + delta.dy).clamp(30.0, 600.0),
+                    );
+                    widget.onWidgetResized(node.id, newSize);
+                  }
+                },
+                onPanEnd: (details) {
+                  setState(() {
+                    _resizingWidgetId = null;
+                    _resizeStartPosition = null;
+                    _resizeStartSize = null;
+                  });
+                },
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.drag_handle,
+                    size: 8,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            
+            // Corner expansion handles
+            Positioned(
+              right: -6,
+              top: -6,
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  final delta = details.delta / _canvasScale;
+                  final newSize = Size(
+                    (node.size.width + delta.dx).clamp(50.0, 800.0),
+                    node.size.height,
+                  );
+                  final newPosition = Offset(
+                    node.position.dx,
+                    (node.position.dy + delta.dy).clamp(0.0, double.infinity),
+                  );
+                  widget.onWidgetResized(node.id, newSize);
+                  widget.onWidgetMoved(node.id, newPosition);
+                },
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2196F3),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ],
+          
+          // Child widgets for non-layout widgets
+          if (node.children.isNotEmpty && !['Row Widget', 'Column Widget', 'Container Widget'].contains(node.type))
+            ...node.children.map((child) => _buildWidgetNode(child, depth + 1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChildrenLayout(WidgetNode node) {
+    if (node.type == 'Row Widget') {
+      return _buildRowLayout(node);
+    } else if (node.type == 'Column Widget') {
+      return _buildColumnLayout(node);
+    } else if (node.type == 'Container Widget') {
+      return _buildContainerLayout(node);
+    } else {
+      return const SizedBox();
+    }
+  }
+
+  Widget _buildRowLayout(WidgetNode node) {
+    final mainAxisAlignment = node.properties['mainAxisAlignment']?.toString() ?? 'start';
+    final crossAxisAlignment = node.properties['crossAxisAlignment']?.toString() ?? 'center';
+    
+    return Padding(
+      padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+      child: Row(
+        mainAxisAlignment: _parseMainAxisAlignment(mainAxisAlignment),
+        crossAxisAlignment: _parseCrossAxisAlignment(crossAxisAlignment),
+        children: node.children.map((child) {
+          return _buildLayoutChild(child);
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildColumnLayout(WidgetNode node) {
+    final mainAxisAlignment = node.properties['mainAxisAlignment']?.toString() ?? 'start';
+    final crossAxisAlignment = node.properties['crossAxisAlignment']?.toString() ?? 'center';
+    
+    return Padding(
+      padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+      child: Column(
+        mainAxisAlignment: _parseMainAxisAlignment(mainAxisAlignment),
+        crossAxisAlignment: _parseCrossAxisAlignment(crossAxisAlignment),
+        children: node.children.map((child) {
+          return _buildLayoutChild(child);
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildContainerLayout(WidgetNode node) {
+    final alignment = node.properties['alignment']?.toString() ?? 'center';
+    
+    return Padding(
+      padding: EdgeInsets.all(node.properties['padding'] as double? ?? 0),
+      child: Align(
+        alignment: _parseAlignment(alignment),
+        child: node.children.isNotEmpty 
+            ? _buildLayoutChild(node.children.first)
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildLayoutChild(WidgetNode child) {
+    final isSelected = widget.selectedWidgetId == child.id;
+    
+    return GestureDetector(
+      onTap: () => widget.onWidgetSelected(child.id),
+      child: Container(
+        width: child.size.width,
+        height: child.size.height,
+        margin: EdgeInsets.all(child.properties['margin'] as double? ?? 4),
+        decoration: BoxDecoration(
+          color: child.type == 'Container Widget'
+              ? _parseColor(child.properties['color']?.toString() ?? '#FF3F3F3F')
+              : const Color(0xFF3F3F3F),
+          border: Border.all(
+            color: isSelected 
+                ? const Color(0xFF4CAF50) 
+                : _parseColor(child.properties['borderColor']?.toString() ?? '#FFE0E0E0'),
+            width: child.properties['borderWidth'] as double? ?? 1,
+          ),
+          borderRadius: BorderRadius.circular(
+            child.properties['borderRadius'] as double? ?? 4
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Title bar for layout children
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 20,
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF666666),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 6),
+                    Icon(
+                      child.icon,
+                      color: Colors.white,
+                      size: 10,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        child.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Content
+            Positioned.fill(
+              top: 20,
+              child: _buildChildWidgetContent(child),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWidgetContent(WidgetNode node, bool isScaffold) {
+    if (isScaffold) {
+      return Positioned(
+        top: 8,
+        left: 8,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4CAF50),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(node.icon, color: Colors.white, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                node.label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (node.children.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(node.icon, color: const Color(0xFFEDF1EE), size: 20),
+            const SizedBox(height: 4),
+            Text(
+              'Empty ${node.label}',
+              style: const TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return const SizedBox();
+  }
+
+  Widget _buildChildWidgetContent(WidgetNode child) {
+    if (child.type == 'Text Widget') {
+      return Container(
+        padding: EdgeInsets.all(child.properties['padding'] as double? ?? 0),
+        child: Center(
+          child: Text(
+            child.properties['text']?.toString() ?? 'Text',
+            style: TextStyle(
+              color: _parseColor(child.properties['color']?.toString() ?? '#FFEDF1EE'),
+              fontSize: (child.properties['fontSize'] as double? ?? 16.0).clamp(8.0, 24.0),
+              fontWeight: _parseFontWeight(child.properties['fontWeight']?.toString() ?? 'normal'),
+              fontFamily: child.properties['fontFamily']?.toString() ?? widget.appTheme.fontFamily,
+              letterSpacing: child.properties['letterSpacing'] as double?,
+              height: child.properties['lineHeight'] as double?,
+            ),
+            textAlign: _parseTextAlign(child.properties['textAlign']?.toString() ?? 'left'),
+            maxLines: (child.properties['maxLines'] as double?)?.toInt(),
+            overflow: _parseTextOverflow(child.properties['overflow']?.toString() ?? 'clip'),
+          ),
+        ),
+      );
+    } else if (child.type == 'TextField Widget') {
+      return Container(
+        padding: EdgeInsets.all(child.properties['padding'] as double? ?? 8),
+        child: TextField(
+          style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+          decoration: InputDecoration(
+            hintText: child.properties['hintText']?.toString() ?? 'Enter text...',
+            labelText: child.properties['labelText']?.toString() ?? 'Label',
+            hintStyle: const TextStyle(color: Color(0xFF999999), fontSize: 10),
+            labelStyle: const TextStyle(color: Color(0xFF999999), fontSize: 10),
+            filled: child.properties['filled'] as bool? ?? false,
+            fillColor: child.properties['fillColor'] != null 
+                ? _parseColor(child.properties['fillColor'].toString())
+                : const Color(0xFF2F2F2F),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF666666)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          ),
+          obscureText: child.properties['obscureText'] ?? false,
+          enabled: child.properties['enabled'] ?? true,
+          maxLines: (child.properties['maxLines'] as double?)?.toInt() ?? 1,
+          onChanged: (value) {
+            // Update the widget property in real-time
+            child.properties['value'] = value;
+          },
+        ),
+      );
+    } else {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(child.icon, color: const Color(0xFFEDF1EE), size: 16),
+            const SizedBox(height: 2),
+            Text(
+              child.label,
+              style: const TextStyle(
+                color: Color(0xFFEDF1EE),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Color _parseColor(String colorString) {
+    try {
+      return Color(int.parse(colorString.replaceFirst('#', '0x')));
+    } catch (e) {
+      return const Color(0xFF3F3F3F);
+    }
+  }
+
+  Alignment _parseAlignment(String alignment) {
+    switch (alignment) {
+      case 'topLeft': return Alignment.topLeft;
+      case 'topCenter': return Alignment.topCenter;
+      case 'topRight': return Alignment.topRight;
+      case 'centerLeft': return Alignment.centerLeft;
+      case 'center': return Alignment.center;
+      case 'centerRight': return Alignment.centerRight;
+      case 'bottomLeft': return Alignment.bottomLeft;
+      case 'bottomCenter': return Alignment.bottomCenter;
+      case 'bottomRight': return Alignment.bottomRight;
+      default: return Alignment.center;
+    }
+  }
+
+  MainAxisAlignment _parseMainAxisAlignment(String alignment) {
+    switch (alignment) {
+      case 'start': return MainAxisAlignment.start;
+      case 'end': return MainAxisAlignment.end;
+      case 'center': return MainAxisAlignment.center;
+      case 'spaceBetween': return MainAxisAlignment.spaceBetween;
+      case 'spaceAround': return MainAxisAlignment.spaceAround;
+      case 'spaceEvenly': return MainAxisAlignment.spaceEvenly;
+      default: return MainAxisAlignment.start;
+    }
+  }
+
+  CrossAxisAlignment _parseCrossAxisAlignment(String alignment) {
+    switch (alignment) {
+      case 'start': return CrossAxisAlignment.start;
+      case 'end': return CrossAxisAlignment.end;
+      case 'center': return CrossAxisAlignment.center;
+      case 'stretch': return CrossAxisAlignment.stretch;
+      case 'baseline': return CrossAxisAlignment.baseline;
+      default: return CrossAxisAlignment.center;
+    }
+  }
+
+  FontWeight _parseFontWeight(String fontWeight) {
+    switch (fontWeight) {
+      case 'bold': return FontWeight.bold;
+      case 'w100': return FontWeight.w100;
+      case 'w200': return FontWeight.w200;
+      case 'w300': return FontWeight.w300;
+      case 'w400': return FontWeight.w400;
+      case 'w500': return FontWeight.w500;
+      case 'w600': return FontWeight.w600;
+      case 'w700': return FontWeight.w700;
+      case 'w800': return FontWeight.w800;
+      case 'w900': return FontWeight.w900;
+      default: return FontWeight.normal;
+    }
+  }
+
+  TextAlign _parseTextAlign(String textAlign) {
+    switch (textAlign) {
+      case 'left': return TextAlign.left;
+      case 'right': return TextAlign.right;
+      case 'center': return TextAlign.center;
+      case 'justify': return TextAlign.justify;
+      default: return TextAlign.left;
+    }
+  }
+
+  TextOverflow _parseTextOverflow(String overflow) {
+    switch (overflow) {
+      case 'clip': return TextOverflow.clip;
+      case 'fade': return TextOverflow.fade;
+      case 'ellipsis': return TextOverflow.ellipsis;
+      case 'visible': return TextOverflow.visible;
+      default: return TextOverflow.clip;
+    }
+  }
+}
+
+class WidgetData {
+  String type;
+  String label;
+  IconData icon;
+  Offset position;
+
+  WidgetData({
+    required this.type,
+    required this.label,
+    required this.icon,
+    required this.position,
+  });
+}
