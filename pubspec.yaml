@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.7.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -16,7 +16,7 @@ dependencies:
   provider: ^6.1.1
   flutter_colorpicker: ^1.0.3
   flutter_sdui: 
-    path: /Users/rujindevkota/Documents/projects/GDSC/flutter-sdui-package
+    path: ../flutter-sdui-package
   file_picker: ^10.2.0
   uuid: ^4.5.1
 

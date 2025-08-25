@@ -347,10 +347,10 @@
       "name": "flutter_sdui_frontend",
       "rootUri": "../",
       "packageUri": "lib/",
-      "languageVersion": "3.0"
+      "languageVersion": "3.7"
     }
   ],
-  "generated": "2025-08-25T16:57:38.213402Z",
+  "generated": "2025-08-25T18:35:01.726661Z",
   "generator": "pub",
   "generatorVersion": "3.7.2",
   "flutterRoot": "file:///Users/rujindevkota/Devlopment/flutter",
