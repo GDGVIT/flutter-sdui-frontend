@@ -383,6 +383,23 @@ class DesignCanvasState extends State<DesignCanvas> {
                                     icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 20),
                                     tooltip: 'Reset View',
                                   ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    onPressed: () {
+                                      // Fit all content to view
+                                      final canvasSize = computeCanvasSize(widget.widgetRoot);
+                                      final viewportSize = MediaQuery.of(context).size;
+                                      final scaleX = (viewportSize.width * 0.8) / canvasSize.width;
+                                      final scaleY = (viewportSize.height * 0.8) / canvasSize.height;
+                                      final fitScale = [scaleX, scaleY, 1.0].where((v) => v.isFinite && v > 0).reduce((a, b) => a < b ? a : b);
+                                      setState(() {
+                                        _canvasScale = fitScale.clamp(0.1, 3.0);
+                                        _canvasOffset = Offset.zero;
+                                      });
+                                    },
+                                    icon: const Icon(Icons.fit_screen, color: Color(0xFFEDF1EE), size: 20),
+                                    tooltip: 'Fit to View',
+                                  ),
                                 ],
                               ),
                             ),

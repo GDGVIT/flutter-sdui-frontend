@@ -194,5 +194,8 @@ class DesignCanvasViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Add more high-level coordination as needed...
+  void setRootWidgetNode(WidgetNode node) {
+    _rootWidgetNode = node;
+    notifyListeners();
+  }
 } 

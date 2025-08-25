@@ -56,8 +56,11 @@ class _PreviewPaneState extends State<PreviewPane> {
   Widget build(BuildContext context) {
     final device = DeviceRegistry.getByName(selectedDevice);
     final isResponsive = device?.isResponsive ?? false;
-    final width = isResponsive ? responsiveWidth : (device?.width ?? 400);
-    final height = isResponsive ? responsiveHeight : (device?.height ?? 700);
+    // Use device logical sizes; fall back to defaults
+    final double logicalW = isResponsive ? responsiveWidth : (device?.width ?? 390);
+    final double logicalH = isResponsive ? responsiveHeight : (device?.height ?? 844);
+    final double baseRenderW = logicalW;
+    final double baseRenderH = logicalH;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -68,43 +71,68 @@ class _PreviewPaneState extends State<PreviewPane> {
         ),
         const SizedBox(height: 12),
         if (isResponsive)
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               const Text('Zoom:'),
-              Slider(
-                value: zoom,
-                min: 0.2,
-                max: 2.0,
-                divisions: 18,
-                label: '${(zoom * 100).round()}%',
-                onChanged: (v) => setState(() => zoom = v),
+              SizedBox(
+                width: 200,
+                child: Slider(
+                  value: zoom,
+                  min: 0.2,
+                  max: 2.0,
+                  divisions: 18,
+                  label: '${(zoom * 100).round()}%',
+                  onChanged: (v) => setState(() => zoom = v),
+                ),
               ),
               Text('${(zoom * 100).round()}%'),
             ],
           ),
-        Center(
-          child: Stack(
-            children: [
-              Container(
-                width: width * zoom,
-                height: height * zoom,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.black,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: width * zoom,
-                    height: height * zoom,
-                    child: widget.sduiRoot,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double padding = 16;
+              final double availW = (constraints.maxWidth - padding * 2).clamp(100, double.infinity);
+              final double availH = (constraints.maxHeight - padding * 2).clamp(100, double.infinity);
+              final double scaleToFitW = availW / baseRenderW;
+              final double scaleToFitH = availH / baseRenderH;
+              final double fitScale = [scaleToFitW, scaleToFitH, 1.0].where((v) => v.isFinite && v > 0).reduce((a, b) => a < b ? a : b);
+              final double renderScale = (zoom <= 0 ? 1.0 : zoom);
+              final double finalScale = renderScale > fitScale ? fitScale : renderScale;
+              final double renderW = baseRenderW * finalScale;
+              final double renderH = baseRenderH * finalScale;
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(padding),
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: renderW,
+                        height: renderH,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey, width: 2),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.black,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: SizedBox(
+                            width: renderW,
+                            height: renderH,
+                            child: widget.sduiRoot,
+                          ),
+                        ),
+                      ),
+                      if (isResponsive)
+                        ..._buildResizeHandles(),
+                    ],
                   ),
                 ),
-              ),
-              if (isResponsive)
-                ..._buildResizeHandles(),
-            ],
+              );
+            },
           ),
         ),
       ],

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/widget_data.dart';
-import 'package:flutter_sdui/flutter_sdui.dart';
 import '../../services/widget_properties_service.dart';
 
 // Set to true to show experimental/legacy widgets in the palette
@@ -174,38 +173,50 @@ class _BuildPaneState extends State<BuildPane> {
       onPointerCancel: (event) {
         widget.onPaletteDragEnd?.call();
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFE0E0E0),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(entry.icon, color: const Color(0xFF212121), size: 28),
-              const SizedBox(height: 4),
-              Text(
-                entry.label,
-                style: const TextStyle(
-                  color: Color(0xFF212121),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double tileWidth = constraints.maxWidth;
+          final double iconSize = (tileWidth * 0.18).clamp(22, 36);
+          final double labelFont = (tileWidth * 0.08).clamp(11, 14);
+          final double infoFont = (tileWidth * 0.07).clamp(9, 12);
+          final double verticalGap = (tileWidth * 0.02).clamp(2, 8);
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0E0E0),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(entry.icon, color: const Color(0xFF212121), size: iconSize),
+                  SizedBox(height: verticalGap),
+                  Text(
+                    entry.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: const Color(0xFF212121),
+                      fontSize: labelFont.toDouble(),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: (verticalGap * 0.6).clamp(2, 6)),
+                  Text(
+                    entry.childrenInfo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: const Color(0xFF666666),
+                      fontSize: infoFont.toDouble(),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                entry.childrenInfo,
-                style: const TextStyle(
-                  color: Color(0xFF666666),
-                  fontSize: 10,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -237,14 +248,22 @@ class _BuildPaneState extends State<BuildPane> {
         ),
         if (isExpanded) ...[
           const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.8,
-            children: widgets.map((widget) => widget ?? _buildEmptyCard()).toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // Aim for cards around 160-200px wide and adapt to sidebar width
+              const double desiredTileWidth = 180;
+              return GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: desiredTileWidth,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 0.9,
+                ),
+                children: widgets.map((w) => w ?? _buildEmptyCard()).toList(),
+              );
+            },
           ),
         ],
       ],

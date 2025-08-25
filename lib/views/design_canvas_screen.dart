@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:provider/provider.dart';
 import '../viewmodels/design_canvas_viewmodel.dart';
 import '../services/code_generator_service.dart';
@@ -43,176 +44,231 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
     return Consumer<DesignCanvasViewModel>(
       builder: (context, viewModel, child) {
         return Scaffold(
-          body: Row(
-            children: [
-              // Narrow Icon Bar
-              Container(
-                width: 90,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2F2F2F),
-                  border: Border(
-                    right: BorderSide(color: Color(0xFFE0E0E0), width: 1),
-                  ),
-                ),
-                child: IconBar(
-                  selectedPane: viewModel.selectedPane,
-                  onPaneSelected: viewModel.setSelectedPane,
-                ),
-              ),
-              // Resizable Left Panel
-              SizedBox(
-                width: leftWidth,
-                child: LeftSidebar(
-                  selectedPane: viewModel.selectedPane,
-                  scaffoldWidget: viewModel.widgetRoot,
-                  appTheme: viewModel.appTheme,
-                  onThemeChanged: viewModel.updateTheme,
-                  onWidgetDropped: (widgetData) {},
-                  selectedWidgetId: viewModel.selectedWidgetId,
-                  onWidgetSelected: viewModel.setSelectedWidget,
-                  onPaletteDragStart: (data, pos) => _canvasKey.currentState?.startPaletteDrag(data, pos),
-                  onPaletteDragUpdate: (pos) => _canvasKey.currentState?.updatePaletteDrag(pos),
-                  onPaletteDragEnd: () => _canvasKey.currentState?.endPaletteDrag(),
-                ),
-              ),
-              // Left Divider
-              MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragStart: (details) {
-                    setState(() {
-                      resizingLeft = true;
-                      dragStart = details.globalPosition;
-                      dragStartLeftWidth = leftWidth;
-                    });
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    if (resizingLeft && dragStart != null && dragStartLeftWidth != null) {
-                      setState(() {
-                        leftWidth = (dragStartLeftWidth! + (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, 400);
-                      });
-                    }
-                  },
-                  onHorizontalDragEnd: (_) {
-                    setState(() {
-                      resizingLeft = false;
-                      dragStart = null;
-                      dragStartLeftWidth = null;
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    width: 4,
-                    color: resizingLeft ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-              // Main Canvas Area
-              Expanded(
-                child: Column(
-                  children: [
-                    // View Toggle Header
-                    Container(
-                      height: 50,
-                      color: const Color(0xFF2F2F2F),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 16),
-                          const Text(
-                            'View:',
-                            style: TextStyle(
-                              color: Color(0xFFEDF1EE),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          _buildViewToggle(context, 'Design', !viewModel.showPreview, viewModel),
-                          const SizedBox(width: 8),
-                          _buildViewToggle(context, 'Preview', viewModel.showPreview, viewModel),
-                          const Spacer(),
-                          if (viewModel.showPreview)
-                            TextButton.icon(
-                              onPressed: () => _showCodeDialog(context, viewModel),
-                              icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 16),
-                              label: const Text(
-                                'View Code',
-                                style: TextStyle(color: Color(0xFF4CAF50)),
-                              ),
-                            ),
-                          const SizedBox(width: 16),
-                        ],
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              const double iconBarWidth = 90;
+              const double dividerWidth = 4;
+              const double minCenterWidth = 280;
+
+              double maxPanelWidth = math.max(minPaneWidth, constraints.maxWidth * 0.4);
+              double effectiveLeftWidth = leftWidth.clamp(minPaneWidth, maxPanelWidth);
+              double effectiveRightWidth = rightWidth.clamp(minPaneWidth, maxPanelWidth);
+
+              double fixedSpace = iconBarWidth + (2 * dividerWidth) + effectiveLeftWidth + effectiveRightWidth;
+              double remaining = constraints.maxWidth - fixedSpace;
+
+              if (remaining < minCenterWidth) {
+                double targetPanelsTotal = (constraints.maxWidth - iconBarWidth - (2 * dividerWidth) - minCenterWidth).clamp(0, double.infinity);
+                double currentPanelsTotal = (effectiveLeftWidth + effectiveRightWidth).clamp(1, double.infinity);
+                double scale = targetPanelsTotal / currentPanelsTotal;
+                effectiveLeftWidth = (effectiveLeftWidth * scale).clamp(minPaneWidth, maxPanelWidth);
+                effectiveRightWidth = (effectiveRightWidth * scale).clamp(minPaneWidth, maxPanelWidth);
+              }
+
+              final double minTotalWidth = iconBarWidth + (2 * dividerWidth) + (2 * minPaneWidth) + minCenterWidth;
+
+              final Widget contentRow = Row(
+                children: [
+                  // Narrow Icon Bar
+                  Container(
+                    width: iconBarWidth,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2F2F2F),
+                      border: Border(
+                        right: BorderSide(color: Color(0xFFE0E0E0), width: 1),
                       ),
                     ),
-                    // Canvas Content
-                    Expanded(
-                      child: viewModel.showPreview
-                          ? PreviewCanvas(
-                              widgetRoot: viewModel.widgetRoot,
-                              appTheme: viewModel.appTheme,
-                            )
-                          : DesignCanvas(
-                              key: _canvasKey,
-                              widgetRoot: viewModel.widgetRoot,
-                              selectedWidgetId: viewModel.selectedWidgetId,
-                              appTheme: viewModel.appTheme,
-                              onWidgetSelected: viewModel.setSelectedWidget,
-                              onWidgetAdded: viewModel.addWidgetToParent,
-                              onWidgetMoved: viewModel.moveWidget,
-                              onWidgetResized: viewModel.resizeWidget,
-                              onWidgetReparent: viewModel.reparentWidget,
-                            ),
+                    child: IconBar(
+                      selectedPane: viewModel.selectedPane,
+                      onPaneSelected: viewModel.setSelectedPane,
                     ),
-                  ],
-                ),
-              ),
-              // Right Divider
-              MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragStart: (details) {
-                    setState(() {
-                      resizingRight = true;
-                      dragStart = details.globalPosition;
-                      dragStartRightWidth = rightWidth;
-                    });
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    if (resizingRight && dragStart != null && dragStartRightWidth != null) {
-                      setState(() {
-                        rightWidth = (dragStartRightWidth! - (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, 400);
-                      });
-                    }
-                  },
-                  onHorizontalDragEnd: (_) {
-                    setState(() {
-                      resizingRight = false;
-                      dragStart = null;
-                      dragStartRightWidth = null;
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    width: 4,
-                    color: resizingRight ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
-                    child: const SizedBox.expand(),
                   ),
-                ),
-              ),
-              // Right Properties Panel
-              SizedBox(
-                width: rightWidth,
-                child: PropertiesPanel(
-                  selectedWidget: viewModel.getSelectedWidget(),
-                  appTheme: viewModel.appTheme,
-                  onPropertyChanged: viewModel.updateWidgetProperty,
-                  onWidgetRemoved: viewModel.removeWidget,
-                ),
-              ),
-            ],
+                  // Resizable Left Panel
+                  SizedBox(
+                    width: effectiveLeftWidth,
+                    child: LeftSidebar(
+                      selectedPane: viewModel.selectedPane,
+                      scaffoldWidget: viewModel.widgetRoot,
+                      appTheme: viewModel.appTheme,
+                      onThemeChanged: viewModel.updateTheme,
+                      onWidgetDropped: (widgetData) {},
+                      selectedWidgetId: viewModel.selectedWidgetId,
+                      onWidgetSelected: viewModel.setSelectedWidget,
+                      onPaletteDragStart: (data, pos) => _canvasKey.currentState?.startPaletteDrag(data, pos),
+                      onPaletteDragUpdate: (pos) => _canvasKey.currentState?.updatePaletteDrag(pos),
+                      onPaletteDragEnd: () => _canvasKey.currentState?.endPaletteDrag(),
+                    ),
+                  ),
+                  // Left Divider
+                  MouseRegion(
+                    cursor: SystemMouseCursors.resizeLeftRight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragStart: (details) {
+                        setState(() {
+                          resizingLeft = true;
+                          dragStart = details.globalPosition;
+                          dragStartLeftWidth = leftWidth;
+                        });
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        if (resizingLeft && dragStart != null && dragStartLeftWidth != null) {
+                          setState(() {
+                            final double upper = math.max(minPaneWidth, constraints.maxWidth * 0.6);
+                            leftWidth = (dragStartLeftWidth! + (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, upper);
+                          });
+                        }
+                      },
+                      onHorizontalDragEnd: (_) {
+                        setState(() {
+                          resizingLeft = false;
+                          dragStart = null;
+                          dragStartLeftWidth = null;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        width: dividerWidth,
+                        color: resizingLeft ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
+                  // Main Canvas Area
+                  Expanded(
+                    child: Column(
+                      children: [
+                        // View Toggle Header
+                        Container(
+                          height: 50,
+                          color: const Color(0xFF2F2F2F),
+                          child: LayoutBuilder(
+                            builder: (context, headerConstraints) {
+                              final bool compact = headerConstraints.maxWidth < 460;
+                              final Widget codeButton = viewModel.showPreview
+                                  ? (compact
+                                      ? IconButton(
+                                          onPressed: () => _showCodeDialog(context, viewModel),
+                                          icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 18),
+                                          tooltip: 'View Code',
+                                        )
+                                      : TextButton.icon(
+                                          onPressed: () => _showCodeDialog(context, viewModel),
+                                          icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 16),
+                                          label: const Text(
+                                            'View Code',
+                                            style: TextStyle(color: Color(0xFF4CAF50)),
+                                          ),
+                                        ))
+                                  : const SizedBox.shrink();
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    const SizedBox(width: 16),
+                                    const Text(
+                                      'View:',
+                                      style: TextStyle(
+                                        color: Color(0xFFEDF1EE),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    _buildViewToggle(context, 'Design', !viewModel.showPreview, viewModel),
+                                    const SizedBox(width: 8),
+                                    _buildViewToggle(context, 'Preview', viewModel.showPreview, viewModel),
+                                    const SizedBox(width: 8),
+                                    codeButton,
+                                    const SizedBox(width: 16),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        // Canvas Content
+                        Expanded(
+                          child: viewModel.showPreview
+                              ? PreviewCanvas(
+                                  widgetRoot: viewModel.widgetRoot,
+                                  appTheme: viewModel.appTheme,
+                                )
+                              : DesignCanvas(
+                                  key: _canvasKey,
+                                  widgetRoot: viewModel.widgetRoot,
+                                  selectedWidgetId: viewModel.selectedWidgetId,
+                                  appTheme: viewModel.appTheme,
+                                  onWidgetSelected: viewModel.setSelectedWidget,
+                                  onWidgetAdded: viewModel.addWidgetToParent,
+                                  onWidgetMoved: viewModel.moveWidget,
+                                  onWidgetResized: viewModel.resizeWidget,
+                                  onWidgetReparent: viewModel.reparentWidget,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Right Divider
+                  MouseRegion(
+                    cursor: SystemMouseCursors.resizeLeftRight,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragStart: (details) {
+                        setState(() {
+                          resizingRight = true;
+                          dragStart = details.globalPosition;
+                          dragStartRightWidth = rightWidth;
+                        });
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        if (resizingRight && dragStart != null && dragStartRightWidth != null) {
+                          setState(() {
+                            final double upper = math.max(minPaneWidth, constraints.maxWidth * 0.6);
+                            rightWidth = (dragStartRightWidth! - (details.globalPosition.dx - dragStart!.dx)).clamp(minPaneWidth, upper);
+                          });
+                        }
+                      },
+                      onHorizontalDragEnd: (_) {
+                        setState(() {
+                          resizingRight = false;
+                          dragStart = null;
+                          dragStartRightWidth = null;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        width: dividerWidth,
+                        color: resizingRight ? Theme.of(context).colorScheme.primary.withOpacity(0.10) : Colors.transparent,
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
+                  // Right Properties Panel
+                  SizedBox(
+                    width: effectiveRightWidth,
+                    child: PropertiesPanel(
+                      selectedWidget: viewModel.getSelectedWidget(),
+                      appTheme: viewModel.appTheme,
+                      onPropertyChanged: viewModel.updateWidgetProperty,
+                      onWidgetRemoved: viewModel.removeWidget,
+                    ),
+                  ),
+                ],
+              );
+
+              if (constraints.maxWidth < minTotalWidth) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: minTotalWidth),
+                    child: contentRow,
+                  ),
+                );
+              }
+
+              return contentRow;
+            },
           ),
         );
       },
@@ -265,7 +321,7 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
           'Generated Flutter Code',
           style: TextStyle(color: Color(0xFFEDF1EE)),
         ),
-        content: Container(
+        content: SizedBox(
           width: 600,
           height: 400,
           child: SingleChildScrollView(

@@ -46,24 +46,46 @@ Widget buildWidgetNodeWithDnD({
   GlobalKey dropKey = dropTargetKeys[node.uid] ??= GlobalKey();
 
   Widget childContent;
-  if (node.type == 'Row Widget' || node.type == 'SduiRow' || node.type == 'Column Widget' || node.type == 'SduiColumn') {
-    if (node.type == 'Row Widget' || node.type == 'SduiRow') {
-      childContent = Container(
-        width: node.size.width,
-        height: node.size.height,
-        child: Row(
-          children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
-        ),
-      );
-    } else {
-      childContent = Container(
-        width: node.size.width,
-        height: node.size.height,
-        child: Column(
-          children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
-        ),
-      );
-    }
+  if (node.type == 'Row Widget' || node.type == 'SduiRow') {
+    childContent = Container(
+      width: node.size.width,
+      height: node.size.height,
+      child: Row(
+        children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
+      ),
+    );
+  } else if (node.type == 'Column Widget' || node.type == 'SduiColumn') {
+    childContent = Container(
+      width: node.size.width,
+      height: node.size.height,
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: false)).toList(),
+            ),
+          ),
+          // Show scroll indicator when there are many children
+          if (node.children.length > 2)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   } else if (node.type == 'Stack Widget' || node.type == 'SduiStack') {
     childContent = Stack(
       children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList(),
