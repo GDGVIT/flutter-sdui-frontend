@@ -23,9 +23,8 @@ class WidgetTreeService {
         icon: widgetData.icon,
         position: _getStaggeredChildPosition(root, newChildren.length),
         size: (() {
-          final parentSize = root.size;
-          if ((widgetData.type == 'SduiColumn' || widgetData.type == 'SduiRow' || widgetData.type == 'SduiContainer') && parentSize != null) {
-            return Size(parentSize.width * 0.8, parentSize.height * 0.8);
+          if (widgetData.type == 'SduiColumn' || widgetData.type == 'SduiRow' || widgetData.type == 'SduiContainer') {
+            return Size(root.size.width * 0.8, root.size.height * 0.8);
           }
           return WidgetPropertiesService.getDefaultSize(widgetData.type);
         })(),
@@ -33,32 +32,6 @@ class WidgetTreeService {
         properties: WidgetPropertiesService.getDefaultProperties(widgetData.type),
       );
       newChildren = [...newChildren, newWidget];
-      // ... auto-size logic ...
-      if (root.type == 'SduiColumn') {
-        double totalHeight = newChildren.fold(0.0, (sum, child) => sum + (child.size.height));
-        double parentHeight = root.size.height;
-        double parentWidth = root.size.width;
-        if (totalHeight > parentHeight) {
-          parentHeight = totalHeight * 2;
-        }
-        if (totalHeight > parentHeight && parentConstraints.maxChildren != -1) {
-          double newChildHeight = parentHeight / newChildren.length;
-          newChildren = newChildren.map((child) => child.copyWith(size: Size(child.size.width, newChildHeight))).toList();
-        }
-        root = root.copyWith(size: Size(parentWidth, parentHeight));
-      } else if (root.type == 'SduiRow') {
-        double totalWidth = newChildren.fold(0.0, (sum, child) => sum + (child.size.width));
-        double parentWidth = root.size.width;
-        double parentHeight = root.size.height;
-        if (totalWidth > parentWidth) {
-          parentWidth = totalWidth * 2;
-        }
-        if (totalWidth > parentWidth && parentConstraints.maxChildren != -1) {
-          double newChildWidth = parentWidth / newChildren.length;
-          newChildren = newChildren.map((child) => child.copyWith(size: Size(newChildWidth, child.size.height))).toList();
-        }
-        root = root.copyWith(size: Size(parentWidth, parentHeight));
-      }
       WidgetNode resizedNode = root.copyWith(children: newChildren);
       if (isLayoutWidget) {
         final Rect bounds = _computeChildrenBounds(newChildren);
@@ -135,6 +108,43 @@ class WidgetTreeService {
         .map((child) => removeWidget(child, widgetUid))
         .toList();
     return root.copyWith(children: newChildren);
+  }
+
+  static WidgetNode reparentAtIndex(WidgetNode root, String nodeId, String newParentId, int insertIndex) {
+    final nodeToMove = findWidgetByUid(root, nodeId);
+    if (nodeToMove == null) return root;
+
+    WidgetNode removedTree = _removeNode(root, nodeId);
+    return _insertIntoParent(removedTree, nodeToMove, newParentId, insertIndex);
+  }
+
+  static WidgetNode _removeNode(WidgetNode current, String nodeId) {
+    if (current.uid == nodeId) {
+      // Should not remove the root itself here
+      return current;
+    }
+    final newChildren = <WidgetNode>[];
+    for (final child in current.children) {
+      if (child.uid == nodeId) continue;
+      newChildren.add(_removeNode(child, nodeId));
+    }
+    return current.copyWith(children: newChildren);
+  }
+
+  static WidgetNode _insertIntoParent(WidgetNode current, WidgetNode node, String parentId, int insertIndex) {
+    if (current.uid == parentId) {
+      final constraints = WidgetPropertiesService.getConstraints(current.type);
+      if (!constraints.canHaveChildren) return current;
+      List<WidgetNode> newChildren = List.of(current.children);
+      if (constraints.maxChildren == 1) {
+        newChildren = [node];
+      } else {
+        final idx = insertIndex.clamp(0, newChildren.length);
+        newChildren.insert(idx, node);
+      }
+      return current.copyWith(children: newChildren);
+    }
+    return current.copyWith(children: current.children.map((c) => _insertIntoParent(c, node, parentId, insertIndex)).toList());
   }
 
   static WidgetNode moveWidget(WidgetNode root, String uid, Offset newPosition) {

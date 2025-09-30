@@ -18,6 +18,7 @@ class DesignCanvas extends StatefulWidget {
   final Function(String, Offset) onWidgetMoved;
   final Function(String, Size) onWidgetResized;
   final Function(String, String) onWidgetReparent;
+  final Function(String, String, int)? onWidgetReparentAtIndex;
 
   const DesignCanvas({
     super.key,
@@ -29,6 +30,7 @@ class DesignCanvas extends StatefulWidget {
     required this.onWidgetMoved,
     required this.onWidgetResized,
     required this.onWidgetReparent,
+    this.onWidgetReparentAtIndex,
   });
 
   @override
@@ -46,10 +48,16 @@ class DesignCanvasState extends State<DesignCanvas> {
   final Map<String, GlobalKey> _dropTargetKeys = HashMap();
   String? _deepestDropTargetId;
 
+  // Per-node scroll controllers for Rows/Columns
+  final Map<String, ScrollController> _nodeScrollControllers = HashMap();
+
+  ScrollController _getNodeScrollController(String nodeId) {
+    return _nodeScrollControllers.putIfAbsent(nodeId, () => ScrollController());
+  }
+
   // Custom drag state for palette-to-canvas
   bool _isDraggingFromPalette = false;
   WidgetData? _draggedWidgetData;
-  Offset? _dragPointerPositionGlobal;
   Offset? _dragPointerPositionLocal;
   String? _paletteDropTargetId;
 
@@ -71,6 +79,9 @@ class DesignCanvasState extends State<DesignCanvas> {
   void dispose() {
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
+    for (final controller in _nodeScrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -112,7 +123,6 @@ class DesignCanvasState extends State<DesignCanvas> {
     setState(() {
       _isDraggingFromPalette = true;
       _draggedWidgetData = data;
-      _dragPointerPositionGlobal = globalPosition;
       _updatePaletteDragPosition(globalPosition);
     });
   }
@@ -120,7 +130,6 @@ class DesignCanvasState extends State<DesignCanvas> {
   void updatePaletteDrag(Offset globalPosition) {
     if (_isDraggingFromPalette) {
       setState(() {
-        _dragPointerPositionGlobal = globalPosition;
         _updatePaletteDragPosition(globalPosition);
       });
     }
@@ -155,7 +164,6 @@ class DesignCanvasState extends State<DesignCanvas> {
             setState(() {
               _isDraggingFromPalette = false;
               _draggedWidgetData = null;
-              _dragPointerPositionGlobal = null;
               _dragPointerPositionLocal = null;
               _paletteDropTargetId = null;
             });
@@ -168,7 +176,6 @@ class DesignCanvasState extends State<DesignCanvas> {
     setState(() {
       _isDraggingFromPalette = false;
       _draggedWidgetData = null;
-      _dragPointerPositionGlobal = null;
       _dragPointerPositionLocal = null;
       _paletteDropTargetId = null;
     });
@@ -189,6 +196,85 @@ class DesignCanvasState extends State<DesignCanvas> {
       final local = box.globalToLocal(globalPosition);
       _dragPointerPositionLocal = local;
       _paletteDropTargetId = _findDeepestDropTargetId(local);
+      _autoScrollOnDrag(globalPosition);
+      _autoScrollNodeOnDrag(local);
+    }
+  }
+
+  void _autoScrollNodeOnDrag(Offset localPointer) {
+    // Auto-scroll the currently targeted Row/Column when dragging near its edges
+    final String? targetId = _paletteDropTargetId ?? _deepestDropTargetId;
+    if (targetId == null) return;
+    final key = _dropTargetKeys[targetId];
+    if (key == null) return;
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+
+    // Get node and its controller
+    final node = _findNodeById(widget.widgetRoot, targetId);
+    if (node == null) return;
+    final controller = _getNodeScrollController(targetId);
+    if (!controller.hasClients) return;
+
+    // Convert pointer to this box's local coordinates
+    final Offset topLeft = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject());
+    final Rect rect = topLeft & box.size;
+    final double px = localPointer.dx;
+    final double py = localPointer.dy;
+
+    const double edgeThreshold = 56.0;
+    const double scrollStep = 24.0;
+
+    if (node.type == 'Column Widget' || node.type == 'SduiColumn') {
+      final double topEdge = rect.top;
+      final double bottomEdge = rect.bottom;
+      if (py < topEdge + edgeThreshold) {
+        final newOffset = (controller.offset - scrollStep).clamp(0.0, controller.position.maxScrollExtent);
+        controller.jumpTo(newOffset);
+      } else if (py > bottomEdge - edgeThreshold) {
+        final newOffset = (controller.offset + scrollStep).clamp(0.0, controller.position.maxScrollExtent);
+        controller.jumpTo(newOffset);
+      }
+    } else if (node.type == 'Row Widget' || node.type == 'SduiRow') {
+      final double leftEdge = rect.left;
+      final double rightEdge = rect.right;
+      if (px < leftEdge + edgeThreshold) {
+        final newOffset = (controller.offset - scrollStep).clamp(0.0, controller.position.maxScrollExtent);
+        controller.jumpTo(newOffset);
+      } else if (px > rightEdge - edgeThreshold) {
+        final newOffset = (controller.offset + scrollStep).clamp(0.0, controller.position.maxScrollExtent);
+        controller.jumpTo(newOffset);
+      }
+    }
+  }
+
+  void _autoScrollOnDrag(Offset globalPosition) {
+    // Auto-scroll outer scroll views when dragging near edges
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !_verticalScrollController.hasClients || !_horizontalScrollController.hasClients) return;
+
+    final size = renderBox.size;
+    const edgeThreshold = 64.0;
+    const scrollStep = 24.0;
+
+    // Vertical
+    if (globalPosition.dy < edgeThreshold) {
+      final newOffset = (_verticalScrollController.offset - scrollStep).clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+      _verticalScrollController.jumpTo(newOffset);
+    } else if (globalPosition.dy > size.height - edgeThreshold) {
+      final newOffset = (_verticalScrollController.offset + scrollStep).clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+      _verticalScrollController.jumpTo(newOffset);
+    }
+
+    // Horizontal
+    if (globalPosition.dx < edgeThreshold) {
+      final newOffset = (_horizontalScrollController.offset - scrollStep).clamp(0.0, _horizontalScrollController.position.maxScrollExtent);
+      _horizontalScrollController.jumpTo(newOffset);
+    } else if (globalPosition.dx > size.width - edgeThreshold) {
+      final newOffset = (_horizontalScrollController.offset + scrollStep).clamp(0.0, _horizontalScrollController.position.maxScrollExtent);
+      _horizontalScrollController.jumpTo(newOffset);
     }
   }
 
@@ -287,6 +373,14 @@ class DesignCanvasState extends State<DesignCanvas> {
       setState: setState,
       buildWidgetNodeWithDnD: widgetNodeDndWrapper,
       buildNodeContainer: buildNodeContainer,
+      getNodeScrollController: _getNodeScrollController,
+      onWidgetReparentAtIndex: (nodeId, parentId, index) {
+        if (widget.onWidgetReparentAtIndex != null) {
+          widget.onWidgetReparentAtIndex!(nodeId, parentId, index);
+        } else {
+          widget.onWidgetReparent(nodeId, parentId);
+        }
+      },
       getResizeHandle: (node, visualSize, dx, dy) {
         final cbs = getResizeCallbacks(node, visualSize, dx, dy);
         return buildResizeHandle(
@@ -302,6 +396,9 @@ class DesignCanvasState extends State<DesignCanvas> {
       dragFeedback: (node, visualSize) => _isDraggingFromPalette && _draggedWidgetData != null
         ? buildPaletteDragFeedback(_draggedWidgetData!)
         : _canvasDragFeedback(node, visualSize),
+      onQuickAdd: (parentId, data) {
+        widget.onWidgetAdded(parentId, data);
+      },
     );
   }
 
@@ -317,7 +414,6 @@ class DesignCanvasState extends State<DesignCanvas> {
       children: [
         Expanded(
           child: Container(
-            color: const Color(0xFF212121),
             child: Scrollbar(
               controller: _verticalScrollController,
               thumbVisibility: true,
@@ -336,16 +432,32 @@ class DesignCanvasState extends State<DesignCanvas> {
                       height: canvasHeight,
                       child: Stack(
                         children: [
+                          // Background grid
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: _GridBackgroundPainter(
+                                scale: _canvasScale,
+                                offset: _canvasOffset,
+                              ),
+                            ),
+                          ),
                           // Canvas controls
                           Positioned(
-                            top: 16,
+                            bottom: 16,
                             right: 16,
                             child: Container(
-                              padding: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2F2F2F),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFF666666)),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFF424242), width: 1),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -353,24 +465,28 @@ class DesignCanvasState extends State<DesignCanvas> {
                                   IconButton(
                                     onPressed: () {
                                       setState(() {
-                                        _canvasScale = (_canvasScale * 1.2).clamp(0.5, 3.0);
+                                        _canvasScale = (_canvasScale / 1.2).clamp(0.2, 5.0);
                                       });
                                     },
-                                    icon: const Icon(Icons.zoom_in, color: Color(0xFFEDF1EE), size: 20),
-                                    tooltip: 'Zoom In',
+                                    icon: const Icon(Icons.remove, color: Color(0xFFEDF1EE), size: 16),
+                                    tooltip: 'Zoom Out',
                                   ),
-                                  Text(
-                                    '${(_canvasScale * 100).round()}%',
-                                    style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
+                                  SizedBox(
+                                    width: 40,
+                                    child: Text(
+                                      '${(_canvasScale * 100).round()}%',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
                                   ),
                                   IconButton(
                                     onPressed: () {
                                       setState(() {
-                                        _canvasScale = (_canvasScale / 1.2).clamp(0.5, 3.0);
+                                        _canvasScale = (_canvasScale * 1.2).clamp(0.2, 5.0);
                                       });
                                     },
-                                    icon: const Icon(Icons.zoom_out, color: Color(0xFFEDF1EE), size: 20),
-                                    tooltip: 'Zoom Out',
+                                    icon: const Icon(Icons.add, color: Color(0xFFEDF1EE), size: 16),
+                                    tooltip: 'Zoom In',
                                   ),
                                   const SizedBox(width: 8),
                                   IconButton(
@@ -380,67 +496,38 @@ class DesignCanvasState extends State<DesignCanvas> {
                                         _canvasOffset = Offset.zero;
                                       });
                                     },
-                                    icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 20),
+                                    icon: const Icon(Icons.center_focus_strong, color: Color(0xFFEDF1EE), size: 16),
                                     tooltip: 'Reset View',
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    onPressed: () {
-                                      // Fit all content to view
-                                      final canvasSize = computeCanvasSize(widget.widgetRoot);
-                                      final viewportSize = MediaQuery.of(context).size;
-                                      final scaleX = (viewportSize.width * 0.8) / canvasSize.width;
-                                      final scaleY = (viewportSize.height * 0.8) / canvasSize.height;
-                                      final fitScale = [scaleX, scaleY, 1.0].where((v) => v.isFinite && v > 0).reduce((a, b) => a < b ? a : b);
-                                      setState(() {
-                                        _canvasScale = fitScale.clamp(0.1, 3.0);
-                                        _canvasOffset = Offset.zero;
-                                      });
-                                    },
-                                    icon: const Icon(Icons.fit_screen, color: Color(0xFFEDF1EE), size: 20),
-                                    tooltip: 'Fit to View',
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          // Main canvas (with pan/zoom)
-                          Listener(
-                            onPointerHover: _updatePointerPosition,
-                            onPointerMove: _updatePointerPosition,
-                            child: GestureDetector(
-                              onPanUpdate: (details) {
-                                if (_resizingWidgetId == null) {
-                                  setState(() {
-                                    _canvasOffset += details.delta;
-                                  });
-                                }
-                              },
+                          // Main content
+                          Positioned.fill(
+                            child: Listener(
+                              onPointerHover: _updatePointerPosition,
+                              onPointerMove: _updatePointerPosition,
                               child: Transform.scale(
                                 scale: _canvasScale,
                                 child: Transform.translate(
                                   offset: _canvasOffset,
                                   child: Stack(
+                                    clipBehavior: Clip.none,
                                     children: [
-                                      widgetNodeDndWrapper(widget.widgetRoot, 0, insideStack: false),
+                                      widgetNodeDndWrapper(widget.widgetRoot, 0),
+                                      if (_isDraggingFromPalette && _draggedWidgetData != null && _dragPointerPositionLocal != null)
+                                        Positioned(
+                                          left: _dragPointerPositionLocal!.dx,
+                                          top: _dragPointerPositionLocal!.dy,
+                                          child: buildPaletteDragFeedback(_draggedWidgetData!),
+                                        ),
                                     ],
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          // Custom drag feedback overlay
-                          if (_isDraggingFromPalette && _draggedWidgetData != null && _dragPointerPositionLocal != null)
-                            Positioned(
-                              left: _dragPointerPositionLocal!.dx - 40,
-                              top: _dragPointerPositionLocal!.dy - 40,
-                              child: IgnorePointer(
-                                child: Opacity(
-                                  opacity: 0.85,
-                                  child: buildPaletteDragFeedback(_draggedWidgetData!),
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -450,27 +537,54 @@ class DesignCanvasState extends State<DesignCanvas> {
             ),
           ),
         ),
-        // Reference: Regular Flutter Column
-        // Container(
-        //   color: Colors.grey[200],
-        //   padding: const EdgeInsets.all(16),
-        //   child: Column(
-        //     crossAxisAlignment: CrossAxisAlignment.start,
-        //     children: [
-        //       const Text('Reference: Regular Flutter Column', style: TextStyle(fontWeight: FontWeight.bold)),
-        //       const SizedBox(height: 8),
-        //       Column(
-        //         crossAxisAlignment: CrossAxisAlignment.start,
-        //         children: [
-        //           Container(width: 80, height: 40, color: Colors.red, margin: const EdgeInsets.only(bottom: 8)),
-        //           Container(width: 120, height: 40, color: Colors.green, margin: const EdgeInsets.only(bottom: 8)),
-        //           Container(width: 60, height: 40, color: Colors.blue),
-        //         ],
-        //       ),
-        //     ],
-        //   ),
-        // ),
       ],
     );
   }
-} 
+}
+
+class _GridBackgroundPainter extends CustomPainter {
+  final double scale;
+  final Offset offset;
+  _GridBackgroundPainter({required this.scale, required this.offset});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF3A3A3A)
+      ..strokeWidth = 0.5;
+
+    final minorGridPaint = Paint()
+      ..color = const Color(0xFF303030)
+      ..strokeWidth = 0.5;
+
+    final double gridSize = 50.0 * scale;
+    final double minorGridSize = 10.0 * scale;
+
+    final double startX = -offset.dx % gridSize;
+    final double startY = -offset.dy % gridSize;
+
+    final double minorStartX = -offset.dx % minorGridSize;
+    final double minorStartY = -offset.dy % minorGridSize;
+
+    if (scale > 0.5) {
+      for (double i = minorStartX; i < size.width; i += minorGridSize) {
+        canvas.drawLine(Offset(i, 0), Offset(i, size.height), minorGridPaint);
+      }
+      for (double i = minorStartY; i < size.height; i += minorGridSize) {
+        canvas.drawLine(Offset(0, i), Offset(size.width, i), minorGridPaint);
+      }
+    }
+
+    for (double i = startX; i < size.width; i += gridSize) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+    for (double i = startY; i < size.height; i += gridSize) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GridBackgroundPainter oldDelegate) {
+    return oldDelegate.scale != scale || oldDelegate.offset != offset;
+  }
+}

@@ -32,7 +32,7 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
   final GlobalKey<DesignCanvasState> _canvasKey = GlobalKey<DesignCanvasState>();
   double leftWidth = 275;
   double rightWidth = 300;
-  final double minPaneWidth = 140;
+  final double minPaneWidth = 200;
   bool resizingLeft = false;
   bool resizingRight = false;
   Offset? dragStart;
@@ -44,11 +44,46 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
     return Consumer<DesignCanvasViewModel>(
       builder: (context, viewModel, child) {
         return Scaffold(
+          backgroundColor: const Color(0xFF1E1E1E),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF2F2F2F),
+            elevation: 1,
+            title: const Text(
+              'Flutter SDUI',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            centerTitle: false,
+            actions: [
+              _buildViewToggle(context, 'Design', !viewModel.showPreview, viewModel),
+              const SizedBox(width: 8),
+              _buildViewToggle(context, 'Preview', viewModel.showPreview, viewModel),
+              const SizedBox(width: 16),
+              if (viewModel.showPreview)
+                TextButton.icon(
+                  onPressed: () => _showCodeDialog(context, viewModel),
+                  icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 16),
+                  label: const Text(
+                    'View Code',
+                    style: TextStyle(color: Color(0xFF4CAF50)),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF3C3C3C),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 16),
+            ],
+          ),
           body: LayoutBuilder(
             builder: (context, constraints) {
-              const double iconBarWidth = 90;
+              const double iconBarWidth = 60;
               const double dividerWidth = 4;
-              const double minCenterWidth = 280;
+              const double minCenterWidth = 300;
 
               double maxPanelWidth = math.max(minPaneWidth, constraints.maxWidth * 0.4);
               double effectiveLeftWidth = leftWidth.clamp(minPaneWidth, maxPanelWidth);
@@ -75,7 +110,7 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                     decoration: const BoxDecoration(
                       color: Color(0xFF2F2F2F),
                       border: Border(
-                        right: BorderSide(color: Color(0xFFE0E0E0), width: 1),
+                        right: BorderSide(color: Color(0xFF424242), width: 1),
                       ),
                     ),
                     child: IconBar(
@@ -136,77 +171,25 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
                   ),
                   // Main Canvas Area
                   Expanded(
-                    child: Column(
-                      children: [
-                        // View Toggle Header
-                        Container(
-                          height: 50,
-                          color: const Color(0xFF2F2F2F),
-                          child: LayoutBuilder(
-                            builder: (context, headerConstraints) {
-                              final bool compact = headerConstraints.maxWidth < 460;
-                              final Widget codeButton = viewModel.showPreview
-                                  ? (compact
-                                      ? IconButton(
-                                          onPressed: () => _showCodeDialog(context, viewModel),
-                                          icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 18),
-                                          tooltip: 'View Code',
-                                        )
-                                      : TextButton.icon(
-                                          onPressed: () => _showCodeDialog(context, viewModel),
-                                          icon: const Icon(Icons.code, color: Color(0xFF4CAF50), size: 16),
-                                          label: const Text(
-                                            'View Code',
-                                            style: TextStyle(color: Color(0xFF4CAF50)),
-                                          ),
-                                        ))
-                                  : const SizedBox.shrink();
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    const SizedBox(width: 16),
-                                    const Text(
-                                      'View:',
-                                      style: TextStyle(
-                                        color: Color(0xFFEDF1EE),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    _buildViewToggle(context, 'Design', !viewModel.showPreview, viewModel),
-                                    const SizedBox(width: 8),
-                                    _buildViewToggle(context, 'Preview', viewModel.showPreview, viewModel),
-                                    const SizedBox(width: 8),
-                                    codeButton,
-                                    const SizedBox(width: 16),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        // Canvas Content
-                        Expanded(
-                          child: viewModel.showPreview
-                              ? PreviewCanvas(
-                                  widgetRoot: viewModel.widgetRoot,
-                                  appTheme: viewModel.appTheme,
-                                )
-                              : DesignCanvas(
-                                  key: _canvasKey,
-                                  widgetRoot: viewModel.widgetRoot,
-                                  selectedWidgetId: viewModel.selectedWidgetId,
-                                  appTheme: viewModel.appTheme,
-                                  onWidgetSelected: viewModel.setSelectedWidget,
-                                  onWidgetAdded: viewModel.addWidgetToParent,
-                                  onWidgetMoved: viewModel.moveWidget,
-                                  onWidgetResized: viewModel.resizeWidget,
-                                  onWidgetReparent: viewModel.reparentWidget,
-                                ),
-                        ),
-                      ],
+                    child: Container(
+                      color: const Color(0xFF2A2A2A),
+                      child: viewModel.showPreview
+                          ? PreviewCanvas(
+                              widgetRoot: viewModel.widgetRoot,
+                              appTheme: viewModel.appTheme,
+                            )
+                          : DesignCanvas(
+                              key: _canvasKey,
+                              widgetRoot: viewModel.widgetRoot,
+                              selectedWidgetId: viewModel.selectedWidgetId,
+                              appTheme: viewModel.appTheme,
+                              onWidgetSelected: viewModel.setSelectedWidget,
+                              onWidgetAdded: viewModel.addWidgetToParent,
+                              onWidgetMoved: viewModel.moveWidget,
+                              onWidgetResized: viewModel.resizeWidget,
+                              onWidgetReparent: viewModel.reparentWidget,
+                              onWidgetReparentAtIndex: viewModel.reparentWidgetAtIndex,
+                            ),
                     ),
                   ),
                   // Right Divider
@@ -275,16 +258,6 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
     );
   }
 
-  Widget _buildLeftSidebar(DesignCanvasViewModel viewModel) {
-    // This method is now obsolete, as we use LeftSidebar directly above.
-    return const SizedBox();
-  }
-
-  Widget _buildPropertiesPanel(DesignCanvasViewModel viewModel) {
-    // This method is now obsolete, as we use PropertiesPanel directly above.
-    return const SizedBox();
-  }
-
   Widget _buildViewToggle(BuildContext context, String label, bool isSelected, DesignCanvasViewModel viewModel) {
     return GestureDetector(
       onTap: () {
@@ -293,11 +266,8 @@ class _DesignCanvasScreenContentState extends State<_DesignCanvasScreenContent> 
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF4CAF50) : Colors.transparent,
+          color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF3C3C3C),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFF666666),
-          ),
         ),
         child: Text(
           label,
