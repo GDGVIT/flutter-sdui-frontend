@@ -98,7 +98,19 @@ class SduiConversionService {
           child: children.isNotEmpty ? children.first : null,
         );
       case 'SduiScaffold':
+        // Create AppBar if showAppBar is true and appBarTitle is provided
+        SduiAppBar? appBar;
+        final showAppBar = node.properties['showAppBar'] as bool? ?? true;
+        final appBarTitle = node.properties['appBarTitle']?.toString();
+        if (showAppBar && appBarTitle != null && appBarTitle.isNotEmpty) {
+          appBar = SduiAppBar(
+            title: appBarTitle,
+            backgroundColor: _parseColor(node.properties['appBarBackgroundColor']),
+          );
+        }
+        
         return SduiScaffold(
+          appBar: appBar,
           backgroundColor: _parseColor(node.properties['backgroundColor']),
           resizeToAvoidBottomInset: node.properties['resizeToAvoidBottomInset'] as bool?,
           primary: node.properties['primary'] as bool? ?? true,
@@ -189,6 +201,18 @@ class SduiConversionService {
       if (sduiWidget.extendBodyBehindAppBar != null) properties['extendBodyBehindAppBar'] = sduiWidget.extendBodyBehindAppBar;
       if (sduiWidget.drawerEnableOpenDragGesture != null) properties['drawerEnableOpenDragGesture'] = sduiWidget.drawerEnableOpenDragGesture;
       if (sduiWidget.endDrawerEnableOpenDragGesture != null) properties['endDrawerEnableOpenDragGesture'] = sduiWidget.endDrawerEnableOpenDragGesture;
+      
+      // Handle AppBar properties
+      if (sduiWidget.appBar is SduiAppBar) {
+        properties['showAppBar'] = true;
+        final appBar = sduiWidget.appBar as SduiAppBar;
+        if (appBar.title != null) properties['appBarTitle'] = appBar.title;
+        if (appBar.backgroundColor != null) {
+          properties['appBarBackgroundColor'] = '#${appBar.backgroundColor!.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+        }
+      } else {
+        properties['showAppBar'] = false;
+      }
     }
     if (sduiWidget is SduiText) {
       properties['text'] = sduiWidget.text;

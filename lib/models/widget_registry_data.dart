@@ -5,7 +5,7 @@ import 'widget_registry_entry.dart';
 
 final List<WidgetRegistryEntry> widgetRegistryEntries = [
   // ... all WidgetRegistryEntry definitions for SDUI widgets ...
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiColumn',
     label: 'SduiColumn',
     icon: Icons.view_column,
@@ -53,7 +53,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiRow',
     label: 'SduiRow',
     icon: Icons.view_stream,
@@ -101,7 +101,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+ const  WidgetRegistryEntry(
     type: 'SduiContainer',
     label: 'SduiContainer',
     icon: Icons.crop_square,
@@ -163,7 +163,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 100),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiScaffold',
     label: 'SduiScaffold',
     icon: Icons.web_asset,
@@ -172,6 +172,10 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     maxChildren: 1,
     canHaveChildren: true,
     propertyDefinitions: [
+      PropertyDefinition<bool>('showAppBar', 'Show AppBar', PropertyType.boolean),
+      PropertyDefinition<String>('appBarTitle', 'AppBar Title', PropertyType.text),
+      PropertyDefinition<String>(
+          'appBarBackgroundColor', 'AppBar Background Color', PropertyType.color),
       PropertyDefinition<String>(
           'backgroundColor', 'Background Color', PropertyType.color),
       PropertyDefinition<bool>('resizeToAvoidBottomInset',
@@ -193,6 +197,9 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
           'End Drawer Enable Open Drag Gesture', PropertyType.boolean),
     ],
     defaultProperties: {
+      'showAppBar': true,
+      'appBarTitle': 'AppBar',
+      'appBarBackgroundColor': null,
       'backgroundColor': null,
       'resizeToAvoidBottomInset': null,
       'primary': true,
@@ -207,7 +214,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiSizedBox',
     label: 'SduiSizedBox',
     icon: Icons.crop_16_9,
@@ -226,7 +233,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 40),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiSpacer',
     label: 'SduiSpacer',
     icon: Icons.space_bar,
@@ -243,7 +250,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(0, 0),
   ),
 
-  WidgetRegistryEntry(
+ const  WidgetRegistryEntry(
     type: 'SduiText',
     label: 'SduiText',
     icon: Icons.text_fields,
@@ -320,7 +327,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 60),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiImage',
     label: 'SduiImage',
     icon: Icons.image,
@@ -430,7 +437,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 60),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiIcon',
     label: 'SduiIcon',
     icon: Icons.insert_emoticon,

@@ -1,8 +1,6 @@
 import '../models/widget_node.dart';
 import '../models/app_theme.dart';
-import 'package:flutter_sdui/flutter_sdui.dart';
 import '../viewmodels/design_canvas_viewmodel.dart';
-import 'dart:convert';
 
 class CodeGeneratorService {
   static String generateCode(WidgetNode scaffoldWidget, AppTheme theme) {
@@ -45,6 +43,7 @@ class CodeGeneratorService {
     switch (type) {
       case 'SduiScaffold':
         buffer.write('SduiScaffold(');
+        if (sduiWidget.appBar != null) buffer.write('\n${indentStr}appBar: ${_generateSduiWidgetCode(sduiWidget.appBar, indent + 1)},');
         if (sduiWidget.backgroundColor != null) buffer.write('\n${indentStr}backgroundColor: Color(${sduiWidget.backgroundColor.value}),');
         if (sduiWidget.body != null) buffer.write('\n${indentStr}body: ${_generateSduiWidgetCode(sduiWidget.body, indent + 1)},');
         buffer.write('\n${'  ' * (indent - 1)})');
@@ -116,6 +115,21 @@ class CodeGeneratorService {
         if (sduiWidget.width != null) buffer.write('width: ${sduiWidget.width},');
         if (sduiWidget.height != null) buffer.write('height: ${sduiWidget.height},');
         if (sduiWidget.child != null) buffer.write('child: ${_generateSduiWidgetCode(sduiWidget.child, indent + 1)},');
+        buffer.write(')');
+        break;
+      case 'SduiAppBar':
+        buffer.write('SduiAppBar(');
+        if (sduiWidget.title != null) buffer.write("title: '${sduiWidget.title}',");
+        if (sduiWidget.backgroundColor != null) buffer.write('backgroundColor: Color(${sduiWidget.backgroundColor.value}),');
+        if (sduiWidget.foregroundColor != null) buffer.write('foregroundColor: Color(${sduiWidget.foregroundColor.value}),');
+        if (sduiWidget.elevation != null) buffer.write('elevation: ${sduiWidget.elevation},');
+        if (sduiWidget.centerTitle != null) buffer.write('centerTitle: ${sduiWidget.centerTitle},');
+        if (sduiWidget.toolbarHeight != null) buffer.write('toolbarHeight: ${sduiWidget.toolbarHeight},');
+        if (sduiWidget.leadingWidth != null) buffer.write('leadingWidth: ${sduiWidget.leadingWidth},');
+        if (sduiWidget.automaticallyImplyLeading != null) buffer.write('automaticallyImplyLeading: ${sduiWidget.automaticallyImplyLeading},');
+        if (sduiWidget.titleSpacing != null) buffer.write('titleSpacing: ${sduiWidget.titleSpacing},');
+        if (sduiWidget.toolbarOpacity != null) buffer.write('toolbarOpacity: ${sduiWidget.toolbarOpacity},');
+        if (sduiWidget.bottomOpacity != null) buffer.write('bottomOpacity: ${sduiWidget.bottomOpacity},');
         buffer.write(')');
         break;
       default:
@@ -268,12 +282,4 @@ class CodeGeneratorService {
     return buffer.toString();
   }
 
-  static String _prettyPrintJson(dynamic json) {
-    // Pretty-print JSON for code view
-    try {
-      return const JsonEncoder.withIndent('  ').convert(json);
-    } catch (_) {
-      return json.toString();
-    }
-  }
 } 

@@ -172,10 +172,15 @@ Widget buildWidgetNodeWithDnD({
       ? buildWidgetNodeWithDnD(node.children.first, depth + 1, insideStack: false)
       : const SizedBox.shrink();
   } else if (node.type == 'Scaffold' || node.type == 'SduiScaffold') {
+    final showAppBar = node.properties['showAppBar'] as bool? ?? true;
     final appBarTitle = node.properties['appBarTitle']?.toString() ?? '';
-    final appBarColor = parseColor(node.properties['appBarColor']?.toString() ?? '#FF232323');
-    childContent = Column(
-      children: [
+    final appBarColor = parseColor(node.properties['appBarBackgroundColor']?.toString() ?? '#FF232323');
+    
+    List<Widget> columnChildren = [];
+    
+    // Only add AppBar if showAppBar is true
+    if (showAppBar) {
+      columnChildren.add(
         GestureDetector(
           onTap: () => onWidgetSelected(node.uid),
           child: MouseRegion(
@@ -210,34 +215,40 @@ Widget buildWidgetNodeWithDnD({
             ),
           ),
         ),
-        Expanded(
-          child: Scrollbar(
-            thumbVisibility: true,
+      );
+    }
+    
+    // Add body content
+    columnChildren.add(
+      Expanded(
+        child: Scrollbar(
+          thumbVisibility: true,
+          controller: getNodeScrollController('${node.uid}:v'),
+          child: SingleChildScrollView(
             controller: getNodeScrollController('${node.uid}:v'),
-            child: SingleChildScrollView(
-              controller: getNodeScrollController('${node.uid}:v'),
-              scrollDirection: Axis.vertical,
-              child: Scrollbar(
-                thumbVisibility: true,
+            scrollDirection: Axis.vertical,
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: getNodeScrollController('${node.uid}:h'),
+              notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
                 controller: getNodeScrollController('${node.uid}:h'),
-                notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
-                child: SingleChildScrollView(
-                  controller: getNodeScrollController('${node.uid}:h'),
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: node.size.width,
-                    height: node.size.height,
-                    child: node.children.isNotEmpty
-                        ? Stack(children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList())
-                        : const SizedBox.shrink(),
-                  ),
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: node.size.width,
+                  height: node.size.height,
+                  child: node.children.isNotEmpty
+                      ? Stack(children: node.children.map((child) => buildWidgetNodeWithDnD(child, depth + 1, insideStack: true)).toList())
+                      : const SizedBox.shrink(),
                 ),
               ),
             ),
           ),
         ),
-      ],
+      ),
     );
+    
+    childContent = Column(children: columnChildren);
   } else {
     childContent = Center(
       child: Text(
