@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../models/widget_node.dart';
 import '../../models/app_theme.dart';
 import '../../services/widget_properties_service.dart';
@@ -22,7 +21,10 @@ class PropertiesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) => ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -74,6 +76,7 @@ class PropertiesPanel extends StatelessWidget {
           if (selectedWidget != null) ...[
             Text(
               'Selected: ${selectedWidget!.label}',
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Color(0xFFEDF1EE),
                 fontSize: 14,
@@ -83,11 +86,13 @@ class PropertiesPanel extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Type: ${selectedWidget!.type}',
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
             ),
             const SizedBox(height: 8),
             Text(
               'Children: ${selectedWidget!.children.length}',
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFFEDF1EE), fontSize: 12),
             ),
             const SizedBox(height: 8),
@@ -115,6 +120,8 @@ class PropertiesPanel extends StatelessWidget {
               style: TextStyle(color: Color(0xFFEDF1EE)),
             ),
         ],
+          ),
+        ),
       ),
     );
   }
@@ -133,6 +140,7 @@ class PropertiesPanel extends StatelessWidget {
             children: [
               Text(
                 property.label,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFFEDF1EE),
                   fontSize: 14,
@@ -226,7 +234,7 @@ class PropertiesPanel extends StatelessWidget {
           onTap: () {
             showDialog(
               context: context,
-              builder: (context) => ColorPickerDialog(
+              builder: (context) => _SimpleColorPickerDialog(
                 initialColor: _parseColor(currentValue?.toString() ?? '#FF3F3F3F'),
                 onColorChanged: (color) {
                   final hexColor = '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
@@ -293,8 +301,6 @@ class PropertiesPanel extends StatelessWidget {
             },
           ),
         );
-      default:
-        return const SizedBox();
     }
   }
 
@@ -307,17 +313,25 @@ class PropertiesPanel extends StatelessWidget {
   }
 }
 
-class ColorPickerDialog extends StatefulWidget {
+class _SimpleColorPickerDialog extends StatefulWidget {
   final Color initialColor;
   final Function(Color) onColorChanged;
-  const ColorPickerDialog({super.key, required this.initialColor, required this.onColorChanged});
+  const _SimpleColorPickerDialog({super.key, required this.initialColor, required this.onColorChanged});
 
   @override
-  State<ColorPickerDialog> createState() => _ColorPickerDialogState();
+  State<_SimpleColorPickerDialog> createState() => _SimpleColorPickerDialogState();
 }
 
-class _ColorPickerDialogState extends State<ColorPickerDialog> {
+class _SimpleColorPickerDialogState extends State<_SimpleColorPickerDialog> {
   late Color _color;
+  final List<Color> _presetColors = [
+    Colors.red, Colors.pink, Colors.purple, Colors.deepPurple,
+    Colors.indigo, Colors.blue, Colors.lightBlue, Colors.cyan,
+    Colors.teal, Colors.green, Colors.lightGreen, Colors.lime,
+    Colors.yellow, Colors.amber, Colors.orange, Colors.deepOrange,
+    Colors.brown, Colors.grey, Colors.blueGrey, Colors.black,
+    Colors.white, Colors.transparent,
+  ];
 
   @override
   void initState() {
@@ -328,14 +342,59 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Pick a color'),
-      content: SingleChildScrollView(
-        child: ColorPicker(
-          pickerColor: _color,
-          onColorChanged: (color) => setState(() => _color = color),
-          enableAlpha: true,
-          showLabel: true,
-          pickerAreaHeightPercent: 0.7,
+      title: const Text('Select Color'),
+      content: SizedBox(
+        width: 300,
+        height: 200,
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 60,
+              decoration: BoxDecoration(
+                color: _color,
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  '#${_color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+                  style: TextStyle(
+                    color: _color.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: _presetColors.length,
+                itemBuilder: (context, index) {
+                  final color = _presetColors[index];
+                  return GestureDetector(
+                    onTap: () => setState(() => _color = color),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        border: Border.all(
+                          color: _color == color ? Colors.blue : Colors.grey,
+                          width: _color == color ? 3 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       actions: [
@@ -354,3 +413,4 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     );
   }
 } 
+

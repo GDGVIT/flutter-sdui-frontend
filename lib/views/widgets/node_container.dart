@@ -17,7 +17,7 @@ Widget buildNodeContainer({
 }) {
   Widget container = GestureDetector(
     onTap: onTap,
-    child: Container(
+    child: AnimatedContainer(
       width: visualSize.width,
       height: visualSize.height,
       decoration: BoxDecoration(
@@ -40,6 +40,8 @@ Widget buildNodeContainer({
               : isScaffold ? 8 : 4,
         ),
       ),
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -57,17 +59,7 @@ Widget buildNodeContainer({
               children: [
                 Icon(node.icon, size: 16, color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFEDF1EE)),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    node.label,
-                    style: TextStyle(
-                      color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFEDF1EE),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
+                Expanded(child: _AnimatedEllipsisText(text: node.label, isSelected: isSelected)),
               ],
             ),
           ),
@@ -87,6 +79,27 @@ Widget buildNodeContainer({
     );
   }
   return container;
+}
+
+class _AnimatedEllipsisText extends StatelessWidget {
+  final String text;
+  final bool isSelected;
+  const _AnimatedEllipsisText({required this.text, required this.isSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedDefaultTextStyle(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      style: TextStyle(
+        color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFEDF1EE),
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        overflow: TextOverflow.ellipsis,
+      ),
+      child: Text(text, maxLines: 1),
+    );
+  }
 }
 
 Widget buildResizeHandle({

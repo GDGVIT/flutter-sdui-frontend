@@ -5,7 +5,7 @@ import 'widget_registry_entry.dart';
 
 final List<WidgetRegistryEntry> widgetRegistryEntries = [
   // ... all WidgetRegistryEntry definitions for SDUI widgets ...
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiColumn',
     label: 'SduiColumn',
     icon: Icons.view_column,
@@ -53,7 +53,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiRow',
     label: 'SduiRow',
     icon: Icons.view_stream,
@@ -101,7 +101,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+ const  WidgetRegistryEntry(
     type: 'SduiContainer',
     label: 'SduiContainer',
     icon: Icons.crop_square,
@@ -110,39 +110,41 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     maxChildren: 1,
     canHaveChildren: true,
     propertyDefinitions: [
-      PropertyDefinition<String>(
-          'mainAxisAlignment', 'Main Axis Alignment', PropertyType.dropdown,
+      PropertyDefinition<double>('width', 'Width', PropertyType.number),
+      PropertyDefinition<double>('height', 'Height', PropertyType.number),
+      PropertyDefinition<String>('color', 'Color', PropertyType.color),
+      PropertyDefinition<double>('padding', 'Padding', PropertyType.number),
+      PropertyDefinition<double>('margin', 'Margin', PropertyType.number),
+      PropertyDefinition<String>('alignment', 'Alignment', PropertyType.dropdown,
           options: [
-            'start',
-            'end',
+            'topLeft',
+            'topCenter',
+            'topRight',
+            'centerLeft',
             'center',
-            'spaceBetween',
-            'spaceAround',
-            'spaceEvenly'
+            'centerRight',
+            'bottomLeft',
+            'bottomCenter',
+            'bottomRight'
           ]),
+      PropertyDefinition<double>(
+          'borderRadius', 'Border Radius', PropertyType.number),
       PropertyDefinition<String>(
-          'crossAxisAlignment', 'Cross Axis Alignment', PropertyType.dropdown,
-          options: ['start', 'end', 'center', 'stretch', 'baseline']),
+          'borderColor', 'Border Color', PropertyType.color),
+      PropertyDefinition<double>(
+          'borderWidth', 'Border Width', PropertyType.number),
       PropertyDefinition<String>(
-          'mainAxisSize', 'Main Axis Size', PropertyType.dropdown,
-          options: ['min', 'max']),
-      PropertyDefinition<String>(
-          'textDirection', 'Text Direction', PropertyType.dropdown,
-          options: ['ltr', 'rtl']),
-      PropertyDefinition<String>(
-          'verticalDirection', 'Vertical Direction', PropertyType.dropdown,
-          options: ['down', 'up']),
-      PropertyDefinition<String>(
-          'textBaseline', 'Text Baseline', PropertyType.dropdown,
-          options: ['alphabetic', 'ideographic']),
+          'shadowColor', 'Shadow Color', PropertyType.color),
+      PropertyDefinition<double>(
+          'shadowOffsetX', 'Shadow Offset X', PropertyType.number),
+      PropertyDefinition<double>(
+          'shadowOffsetY', 'Shadow Offset Y', PropertyType.number),
+      PropertyDefinition<double>(
+          'shadowBlurRadius', 'Shadow Blur Radius', PropertyType.number),
+      PropertyDefinition<double>(
+          'shadowSpreadRadius', 'Shadow Spread Radius', PropertyType.number),
     ],
     defaultProperties: {
-      'mainAxisAlignment': 'start',
-      'mainAxisSize': 'max',
-      'crossAxisAlignment': 'center',
-      'textDirection': null,
-      'verticalDirection': 'down',
-      'textBaseline': null,
       'width': 200.0,
       'height': 100.0,
       'color': 0xFFFFFFFF,
@@ -152,12 +154,16 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
       'borderRadius': 0.0,
       'borderColor': 0xFF232526,
       'borderWidth': 0.0,
-      'boxShadow': null,
+      'shadowColor': 0x00000000,
+      'shadowOffsetX': 0.0,
+      'shadowOffsetY': 0.0,
+      'shadowBlurRadius': 0.0,
+      'shadowSpreadRadius': 0.0,
     },
     defaultSize: const Size(200, 100),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiScaffold',
     label: 'SduiScaffold',
     icon: Icons.web_asset,
@@ -166,6 +172,10 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     maxChildren: 1,
     canHaveChildren: true,
     propertyDefinitions: [
+      PropertyDefinition<bool>('showAppBar', 'Show AppBar', PropertyType.boolean),
+      PropertyDefinition<String>('appBarTitle', 'AppBar Title', PropertyType.text),
+      PropertyDefinition<String>(
+          'appBarBackgroundColor', 'AppBar Background Color', PropertyType.color),
       PropertyDefinition<String>(
           'backgroundColor', 'Background Color', PropertyType.color),
       PropertyDefinition<bool>('resizeToAvoidBottomInset',
@@ -187,6 +197,9 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
           'End Drawer Enable Open Drag Gesture', PropertyType.boolean),
     ],
     defaultProperties: {
+      'showAppBar': true,
+      'appBarTitle': 'AppBar',
+      'appBarBackgroundColor': null,
       'backgroundColor': null,
       'resizeToAvoidBottomInset': null,
       'primary': true,
@@ -201,7 +214,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(200, 300),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiSizedBox',
     label: 'SduiSizedBox',
     icon: Icons.crop_16_9,
@@ -220,7 +233,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 40),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiSpacer',
     label: 'SduiSpacer',
     icon: Icons.space_bar,
@@ -237,7 +250,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(0, 0),
   ),
 
-  WidgetRegistryEntry(
+ const  WidgetRegistryEntry(
     type: 'SduiText',
     label: 'SduiText',
     icon: Icons.text_fields,
@@ -268,13 +281,17 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
           'textAlign', 'Text Align', PropertyType.dropdown,
           options: ['left', 'right', 'center', 'justify']),
       PropertyDefinition<String>(
-          'fontFamily', 'Font Family', PropertyType.dropdown, options: [
-        'Roboto',
-        'Arial',
-        'Helvetica',
-        'Times New Roman',
-        'Courier New'
-      ]),
+          'fontFamily', 'Font Family', PropertyType.dropdown,
+          options: [
+            'Roboto',
+            'Arial',
+            'Helvetica',
+            'Times New Roman',
+            'Courier New',
+            'Montserrat',
+            'Lato',
+            'Poppins'
+          ]),
       PropertyDefinition<double>(
           'letterSpacing', 'Letter Spacing', PropertyType.number),
       PropertyDefinition<double>(
@@ -310,7 +327,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 60),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiImage',
     label: 'SduiImage',
     icon: Icons.image,
@@ -332,6 +349,8 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
             'none',
             'scaleDown'
           ]),
+      PropertyDefinition<double>(
+          'borderRadius', 'Border Radius', PropertyType.number),
       PropertyDefinition<String>(
           'alignment', 'Alignment', PropertyType.dropdown,
           options: [
@@ -418,7 +437,7 @@ final List<WidgetRegistryEntry> widgetRegistryEntries = [
     defaultSize: const Size(100, 60),
   ),
 
-  WidgetRegistryEntry(
+  const WidgetRegistryEntry(
     type: 'SduiIcon',
     label: 'SduiIcon',
     icon: Icons.insert_emoticon,

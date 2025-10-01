@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/widget_node.dart';
-import '../../models/widget_data.dart';
 
 // Utility functions for the design canvas. To be moved from design_canvas.dart. 
 
@@ -38,18 +37,32 @@ Color parseColor(String colorString) {
 
 // Recursively compute the bounding box of all widgets
 Size computeCanvasSize(WidgetNode node) {
+  // Start with the current node's bounds
+  double minX = node.position.dx;
+  double minY = node.position.dy;
   double maxX = node.position.dx + node.size.width;
   double maxY = node.position.dy + node.size.height;
+
   for (final child in node.children) {
-    final childSize = computeCanvasSize(child);
-    if (child.position.dx + child.size.width > maxX) {
-      maxX = child.position.dx + child.size.width;
-    }
-    if (child.position.dy + child.size.height > maxY) {
-      maxY = child.position.dy + child.size.height;
-    }
-    if (childSize.width > maxX) maxX = childSize.width;
-    if (childSize.height > maxY) maxY = childSize.height;
+    // Recursively compute child bounds
+    computeCanvasSize(child);
+    
+    // Update bounds to include child
+    final childMinX = child.position.dx;
+    final childMinY = child.position.dy;
+    final childMaxX = child.position.dx + child.size.width;
+    final childMaxY = child.position.dy + child.size.height;
+    
+    minX = minX < childMinX ? minX : childMinX;
+    minY = minY < childMinY ? minY : childMinY;
+    maxX = maxX > childMaxX ? maxX : childMaxX;
+    maxY = maxY > childMaxY ? maxY : childMaxY;
   }
-  return Size(maxX, maxY);
+  
+  // Add padding to ensure all content is visible and scrollable
+  const double padding = 200;
+  final double width = (maxX - minX + padding).clamp(1200, double.infinity);
+  final double height = (maxY - minY + padding).clamp(900, double.infinity);
+  
+  return Size(width, height);
 } 

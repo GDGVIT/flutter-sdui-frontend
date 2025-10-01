@@ -3,8 +3,6 @@ import '../models/widget_node.dart';
 import '../models/app_theme.dart';
 import '../models/widget_data.dart';
 import '../services/widget_properties_service.dart';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter_sdui/flutter_sdui.dart';
 import 'package:uuid/uuid.dart';
 import 'widget_tree_service.dart';
@@ -186,13 +184,21 @@ class DesignCanvasViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reparentWidgetAtIndex(String nodeId, String newParentId, int insertIndex) {
+    if (nodeId == _rootWidgetNode.uid || nodeId == newParentId) return;
+    _rootWidgetNode = WidgetTreeService.reparentAtIndex(_rootWidgetNode, nodeId, newParentId, insertIndex);
+    notifyListeners();
+  }
+
   void importFromSduiJson(Map<String, dynamic> json) {
     final sduiWidget = SduiParser.parseJSON(json);
-    if (sduiWidget == null) return;
     final widgetNode = SduiConversionService.widgetNodeFromSduiWidget(sduiWidget);
     _rootWidgetNode = widgetNode;
     notifyListeners();
   }
 
-  // Add more high-level coordination as needed...
+  void setRootWidgetNode(WidgetNode node) {
+    _rootWidgetNode = node;
+    notifyListeners();
+  }
 } 
